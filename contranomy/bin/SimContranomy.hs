@@ -7,6 +7,7 @@ import qualified Data.ByteString as BS
 import Data.Elf
 import qualified Data.IntMap.Strict as I
 import qualified Data.List as L
+import System.Environment (getArgs)
 
 type BinaryData = I.IntMap (BitVector 8)
 type Address = BitVector 32
@@ -31,8 +32,8 @@ readElf elf =
     = (addData (elfSectionAddr sec) (elfSectionData sec) is, ds)
 
     -- Section contains data memory
-    | (SHF_WRITE `elem` elfSectionFlags sec
-        || SHF_ALLOC `elem` elfSectionFlags sec)
+    | SHF_WRITE `elem` elfSectionFlags sec
+        || SHF_ALLOC `elem` elfSectionFlags sec
     , SHF_EXECINSTR `notElem` elfSectionFlags sec
     = (is, addData (elfSectionAddr sec) (elfSectionData sec) ds)
 
@@ -45,10 +46,29 @@ readElf elf =
 
 main :: IO ()
 main = do
-  elfBytes <- BS.readFile "a.out"
+  args <- getArgs
+
+  case args of
+    ["-h"]     -> showHelp
+    ["--help"] -> showHelp
+    [elfFile]  -> simulateFile elfFile
+    _          -> showHelp
+
+showHelp :: IO ()
+showHelp = putStrLn $ unlines
+  [ "simcontranomy - Simulate an ELF file in contranomy"
+  , ""
+  , "USAGE"
+  , "  simcontranomy FILE"
+  ]
+
+simulateFile :: FilePath -> IO ()
+simulateFile file = do
+  elfBytes <- BS.readFile file
   let elf = parseElf elfBytes
   let (entry, iMem, dMem) = readElf elf
 
-  -- TODO Use 'elfEntry' as an optional(?) argument to the core to start
-  -- execution from a particular PC value.
-  print $ sampleN 10000 $ contranomy' hasClock hasReset entry iMem dMem $ pure (False, False, 0b0)
+  print
+    . sampleN 10000 -- TODO Perhaps this should be some sampleUntil ?
+    . contranomy' hasClock hasReset entry iMem dMem
+    $ pure (False, False, 0b0)

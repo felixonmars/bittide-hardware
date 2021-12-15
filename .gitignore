@@ -1,3 +1,5 @@
 *~
 contranomy/dist-newstyle
 *.local
+*.o
+*.elf
