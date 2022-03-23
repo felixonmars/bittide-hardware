@@ -64,7 +64,7 @@ mkCalendar :: (HiddenClockResetEnable dom) =>
   CalendarConfig bytes aw calEntry ->
   (  Signal dom Bool
   -> Signal dom (WishboneM2S bytes aw)
-  -> Signal dom (calEntry, Bool, WishboneS2M bytes))
+  -> (Signal dom calEntry, Signal dom Bool, Signal dom (WishboneS2M bytes)))
 mkCalendar (CalendarConfig maxCalDepth bsActive bsShadow) =
   calendarWB maxCalDepth bsActive bsShadow
 
@@ -143,9 +143,9 @@ calendarWB ::
   -- ^ Signal that swaps the active and shadow calendar. (1 cycle delay)
   -> Signal dom (WishboneM2S bytes aw)
   -- ^ Incoming wishbone interface
-  -> Signal dom (calEntry, Bool, WishboneS2M bytes)
+  -> (Signal dom calEntry, Signal dom Bool, Signal dom (WishboneS2M bytes))
   -- ^ Currently active entry, Metacycle indicator and outgoing wishbone interface.
-calendarWB SNat bootstrapActive bootstrapShadow shadowSwitch wbIn = bundle
+calendarWB SNat bootstrapActive bootstrapShadow shadowSwitch wbIn =
   (activeEntry <$> calOut, newMetaCycle <$> calOut, wbOut)
  where
   ctrl :: Signal dom (CalendarControl maxCalDepth calEntry bytes)
