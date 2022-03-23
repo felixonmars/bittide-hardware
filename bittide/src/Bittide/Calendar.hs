@@ -6,11 +6,12 @@ Maintainer:          devops@qbaylogic.com
 {-# OPTIONS_GHC -fconstraint-solver-iterations=8 #-}
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Bittide.Calendar(calendar, calendarWB) where
+module Bittide.Calendar(calendar, calendarWB, mkCalendar, CalendarConfig(..)) where
 
 import Clash.Prelude
 
@@ -42,6 +43,30 @@ calendar bootStrapCal shadowSwitch writeEntry = (entryOut, newMetaCycle)
       doubleBufferedRAM bootStrapCal shadowSwitch (satSucc SatWrap <$> counter) writeEntry
     counter = register (0 :: (Index calDepth)) (satSucc SatWrap <$> counter)
     newMetaCycle = fmap not firstCycle .&&. (==0) <$> counter
+
+data CalendarConfig bytes addressWidth calEntry where
+  CalendarConfig ::
+    ( KnownNat bytes
+    , KnownNat addressWidth
+    , Paddable calEntry
+    , Show calEntry
+    , ShowX calEntry
+    , LessThan bootstrapActive maxCalDepth
+    , LessThan bootstrapShadow maxCalDepth
+    , NatFitsInBits (TypeRequiredRegisters calEntry (bytes * 8)) addressWidth
+    ) =>
+    SNat maxCalDepth ->
+    Vec bootstrapActive calEntry ->
+    Vec bootstrapShadow calEntry ->
+    CalendarConfig bytes addressWidth calEntry
+
+mkCalendar :: (HiddenClockResetEnable dom) =>
+  CalendarConfig bytes aw calEntry ->
+  (  Signal dom Bool
+  -> Signal dom (WishboneM2S bytes aw)
+  -> Signal dom (calEntry, Bool, WishboneS2M bytes))
+mkCalendar (CalendarConfig maxCalDepth bsActive bsShadow) =
+  calendarWB maxCalDepth bsActive bsShadow
 
 -- | Datastructure that contains the state of the calendar excluding the buffers.
 -- It stores the depths of the active and shadow calendar, the read pointer, buffer selector
