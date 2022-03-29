@@ -62,6 +62,7 @@ riscv-formal/cores/contranomy/
 
 # Rust build files
 target/
+rusty-tags.vi
 
 # Rust workspace lock file (only used for rust-analyzer)
 /Cargo.lock
