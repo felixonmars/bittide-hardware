@@ -6,6 +6,7 @@ Maintainer:          devops@qbaylogic.com
 {-# OPTIONS_GHC -fconstraint-solver-iterations=8 #-}
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -19,7 +20,7 @@ import Contranomy.Wishbone
 
 -- | The calendar component is a double buffered memory component that sequentially reads
 -- entries from one buffer and offers a write interface to the other buffer. The buffers can
--- be swapped by setting the shadow switch to True. Furthermore it returns a signal that
+-- be swapped by setting the shadow switch to high. Furthermore it returns a signal that
 -- indicates when the first entry of the active buffer is present at the output.
 calendar ::
   forall dom calDepth a .
@@ -120,7 +121,7 @@ wbCalRX = mealy go initState
       else calStReadAddr
 
     updateRegisters :: forall i a.
-      (Enum i) =>
+      (Enum i, KnownNat (BitSize a)) =>
       i ->
       RegisterBank (bytes*8) a->
       RegisterBank (bytes*8) a
@@ -147,8 +148,8 @@ wbCalRX = mealy go initState
       , wishboneAddress = wbAddr
       }
 
-updateRegBank :: (Enum i, KnownNat bytes) => i -> ByteEnable bytes -> BitVector (bytes * 8)  -> RegisterBank (bytes * 8) a-> RegisterBank (bytes * 8) a
-updateRegBank i byteSelect newBV (RegisterBank p@SNat r@SNat vec) = RegisterBank p r newVec
+updateRegBank :: (Enum i, AtLeastOne bytes, KnownNat (BitSize a)) => i -> ByteEnable bytes -> BitVector (bytes * 8)  -> RegisterBank (bytes * 8) a-> RegisterBank (bytes * 8) a
+updateRegBank i byteSelect newBV (RegisterBank vec) = RegisterBank newVec
  where
    newVec = replace i (regUpdate byteSelect (vec !! i) newBV) vec
 
