@@ -162,10 +162,13 @@ calendarWB SNat bootstrapActive bootstrapShadow shadowSwitch wbIn =
 
   bootstrapA = bootstrapActive ++ repeat @(maxCalDepth - bootstrapSizeA) (errorX "Uninitialised active entry")
   bootstrapB = bootstrapShadow ++ repeat @(maxCalDepth - bootstrapSizeB) (errorX "Uninitialised shadow entry")
+
   bufA = blockRam bootstrapA (readA <$> bufCtrl) (writeA <$> bufCtrl)
   bufB = blockRam bootstrapB  (readB <$> bufCtrl) (writeB <$> bufCtrl)
+
   (bufCtrl, calOut) = unbundle $
    mealy go initState $ bundle (shadowSwitch, ctrl, bufA, bufB)
+
   initState = CalendarState
     { firstCycle     = True
     , selectedBuffer = A
@@ -173,6 +176,7 @@ calendarWB SNat bootstrapActive bootstrapShadow shadowSwitch wbIn =
     , calDepthA      = fromSNat $ SNat @(bootstrapSizeA -1)
     , calDepthB      = fromSNat $ SNat @(bootstrapSizeB -1)
     }
+
   go :: CalendarState maxCalDepth ->
     (Bool, CalendarControl maxCalDepth calEntry bytes, calEntry, calEntry) ->
     (CalendarState maxCalDepth, (BufferControl maxCalDepth calEntry, CalendarOutput maxCalDepth calEntry))
