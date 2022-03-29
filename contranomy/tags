@@ -1,0 +1,275 @@
+!_TAG_FILE_FORMAT	2	//
+!_TAG_FILE_SORTED	1	//
+!_TAG_FILE_ENCODING	utf-8	//
+!_TAG_PROGRAM_NAME	ghc-tags	//
+!_TAG_PROGRAM_URL	https://hackage.haskell.org/package/ghc-tags	//
+!_TAG_PROGRAM_VERSION	1.4	//
+!_TAG_FIELD_DESCRIPTION!Haskell	type	/type of expression/
+!_TAG_FIELD_DESCRIPTION!Haskell	ffi	/foreign object name/
+!_TAG_FIELD_DESCRIPTION!Haskell	file	/not exported term/
+!_TAG_FIELD_DESCRIPTION!Haskell	instance	/class, type or data type instance/
+!_TAG_FIELD_DESCRIPTION!Haskell	Kind	/kind of a type/
+!_TAG_KIND_DESCRIPTION!Haskell	M	/module/
+!_TAG_KIND_DESCRIPTION!Haskell	f	/function/
+!_TAG_KIND_DESCRIPTION!Haskell	A	/type constructor/
+!_TAG_KIND_DESCRIPTION!Haskell	c	/data constructor/
+!_TAG_KIND_DESCRIPTION!Haskell	g	/gadt constructor/
+!_TAG_KIND_DESCRIPTION!Haskell	r	/record field/
+!_TAG_KIND_DESCRIPTION!Haskell	=	/type synonym/
+!_TAG_KIND_DESCRIPTION!Haskell	:	/type signature/
+!_TAG_KIND_DESCRIPTION!Haskell	p	/pattern synonym/
+!_TAG_KIND_DESCRIPTION!Haskell	C	/type class/
+!_TAG_KIND_DESCRIPTION!Haskell	m	/type class member/
+!_TAG_KIND_DESCRIPTION!Haskell	i	/type class instance/
+!_TAG_KIND_DESCRIPTION!Haskell	T	/type family/
+!_TAG_KIND_DESCRIPTION!Haskell	t	/type family instance/
+!_TAG_KIND_DESCRIPTION!Haskell	D	/data type family/
+!_TAG_KIND_DESCRIPTION!Haskell	d	/data type family instance/
+!_TAG_KIND_DESCRIPTION!Haskell	I	/foreign import/
+!_TAG_KIND_DESCRIPTION!Haskell	E	/foreign export/
+ADD	src/Contranomy/Assembly.hs	58;"	c	term:ADD Rd Rs1 Rs2
+ADDI	src/Contranomy/Assembly.hs	49;"	c	term:ADDI Rd Rs1 Imm12
+AND	src/Contranomy/Assembly.hs	67;"	c	term:AND Rd Rs1 Rs2
+ANDI	src/Contranomy/Assembly.hs	54;"	c	term:ANDI Rd Rs1 Imm12
+AUIPC	src/Contranomy/Assembly.hs	32;"	c	term:AUIPC Rd Imm21U
+Address	bin/SimContranomy.hs	13;"	=	type:BitVector 32
+AddressWidth	src/Contranomy/Core/SharedTypes.hs	12;"	=	type:32
+Alignment	src/Contranomy/Core/SharedTypes.hs	13;"	=	type:BitVector 1
+BEQ	src/Contranomy/Assembly.hs	35;"	c	term:BEQ Rs1 Rs2 Imm13
+BGE	src/Contranomy/Assembly.hs	38;"	c	term:BGE Rs1 Rs2 Imm13
+BGEU	src/Contranomy/Assembly.hs	40;"	c	term:BGEU Rs1 Rs2 Imm13
+BLT	src/Contranomy/Assembly.hs	37;"	c	term:BLT Rs1 Rs2 Imm13
+BLTU	src/Contranomy/Assembly.hs	39;"	c	term:BLTU Rs1 Rs2 Imm13
+BNE	src/Contranomy/Assembly.hs	36;"	c	term:BNE Rs1 Rs2 Imm13
+BType	src/Contranomy/Assembly.hs	85;"	c	term:BType Opcode Rs1 Rs2 Funct3 Imm13
+BinaryData	bin/SimContranomy.hs	12;"	=	type:I.IntMap (BitVector 8)
+Bytes	src/Contranomy/Core/SharedTypes.hs	14;"	=	type:4
+Contranomy	src/Contranomy.hs	12;"	M
+Contranomy.Assembly	src/Contranomy/Assembly.hs	7;"	M
+Contranomy.Clash.Extra	src/Contranomy/Clash/Extra.hs	8;"	M
+Contranomy.Core	src/Contranomy/Core.hs	13;"	M
+Contranomy.Core.ALU	src/Contranomy/Core/ALU.hs	11;"	M
+Contranomy.Core.Branch	src/Contranomy/Core/Branch.hs	10;"	M
+Contranomy.Core.CSR	src/Contranomy/Core/CSR.hs	13;"	M
+Contranomy.Core.CoreState	src/Contranomy/Core/CoreState.hs	8;"	M
+Contranomy.Core.Exception	src/Contranomy/Core/Exception.hs	12;"	M
+Contranomy.Core.LoadStore	src/Contranomy/Core/LoadStore.hs	10;"	M
+Contranomy.Core.RVFI	src/Contranomy/Core/RVFI.hs	10;"	M
+Contranomy.Core.SharedTypes	src/Contranomy/Core/SharedTypes.hs	8;"	M
+Contranomy.Println	src/Contranomy/Println.hs	1;"	M
+Contranomy.RVFI	src/Contranomy/RVFI.hs	11;"	M
+Contranomy.RegisterFile	src/Contranomy/RegisterFile.hs	8;"	M
+CoreIn	src/Contranomy/Core.hs	42;"	c	term:CoreIn {iBusS2M :: "iBusWishbone" ::: WishboneS2M Bytes, dBusS2M :: "dBusWishbone" ::: WishboneS2M Bytes, timerInterrupt :: "timerInterrupt" ::: TimerInterrupt, softwareInterrupt :: "softwareInterrupt" ::: SoftwareInterrupt, externalInterrupt :: "externalInterrupt" ::: ExternalInterrupt}
+CoreOut	src/Contranomy/Core.hs	51;"	c	term:CoreOut {iBusM2S :: "iBusWishbone" ::: WishboneM2S Bytes AddressWidth, dBusM2S :: "dBusWishbone" ::: WishboneM2S Bytes AddressWidth}
+CoreStage	src/Contranomy/Core/CoreState.hs	16;"	A
+CoreState	src/Contranomy/Core/CoreState.hs	22;"	c	term:CoreState {stage :: CoreStage, pc :: PC, instruction :: MachineWord, machineState :: MachineState, rvfiOrder :: Unsigned 64}
+DIV	src/Contranomy/Assembly.hs	75;"	c	term:DIV Rd Rs1 Rs2
+DIVU	src/Contranomy/Assembly.hs	76;"	c	term:DIVU Rd Rs1 Rs2
+EBREAK	src/Contranomy/Assembly.hs	70;"	c	term:EBREAK
+ECALL	src/Contranomy/Assembly.hs	69;"	c	term:ECALL
+Encoding	src/Contranomy/Assembly.hs	81;"	A
+ExceptionIn	src/Contranomy/Core/Exception.hs	28;"	c	term:ExceptionIn {instrAccessFault :: Bool, instrAddrMisaligned :: Bool, instrIllegal :: Bool, dataAccessFault :: Maybe MachineWord, dataAddrMisaligned :: Maybe MachineWord, timerInterrupt :: Bool, softwareInterrupt :: Bool, externalInterrupt :: MachineWord}
+Execute	src/Contranomy/Core/CoreState.hs	18;"	c	term:Execute {accessFault :: Bool}
+ExternalInterrupt	src/Contranomy/Core.hs	39;"	=	type:MachineWord
+FENCE	src/Contranomy/Assembly.hs	68;"	c	term:FENCE Rd Rs1 Pred Succ Fm
+Fm	src/Contranomy/Assembly.hs	28;"	=	type:BitVector 5
+Funct3	src/Contranomy/Assembly.hs	22;"	=	type:BitVector 3
+Funct7	src/Contranomy/Assembly.hs	23;"	=	type:BitVector 7
+IType	src/Contranomy/Assembly.hs	83;"	c	term:IType Opcode Rd Rs1 Funct3 Imm12
+Imm12	src/Contranomy/Assembly.hs	21;"	=	type:BitVector 12
+Imm13	src/Contranomy/Assembly.hs	20;"	=	type:BitVector 13
+Imm21L	src/Contranomy/Assembly.hs	19;"	=	type:BitVector 21
+Imm21U	src/Contranomy/Assembly.hs	18;"	=	type:BitVector 32
+Instruction	src/Contranomy/Assembly.hs	30;"	A
+InstructionFetch	src/Contranomy/Core/CoreState.hs	17;"	c	term:InstructionFetch
+JAL	src/Contranomy/Assembly.hs	33;"	c	term:JAL Rd Imm21L
+JALR	src/Contranomy/Assembly.hs	34;"	c	term:JALR Rd Rs1 Imm12
+JType	src/Contranomy/Assembly.hs	87;"	c	term:JType Opcode Rd Imm21L
+LB	src/Contranomy/Assembly.hs	41;"	c	term:LB Rd Rs1 Imm12
+LBU	src/Contranomy/Assembly.hs	44;"	c	term:LBU Rd Rs1 Imm12
+LH	src/Contranomy/Assembly.hs	42;"	c	term:LH Rd Rs1 Imm12
+LHU	src/Contranomy/Assembly.hs	45;"	c	term:LHU Rd Rs1 Imm12
+LUI	src/Contranomy/Assembly.hs	31;"	c	term:LUI Rd Imm21U
+LW	src/Contranomy/Assembly.hs	43;"	c	term:LW Rd Rs1 Imm12
+MUL	src/Contranomy/Assembly.hs	71;"	c	term:MUL Rd Rs1 Rs2
+MULH	src/Contranomy/Assembly.hs	72;"	c	term:MULH Rd Rs1 Rs2
+MULHSU	src/Contranomy/Assembly.hs	73;"	c	term:MULHSU Rd Rs1 Rs2
+MULHU	src/Contranomy/Assembly.hs	74;"	c	term:MULHU Rd Rs1 Rs2
+MachineWord	src/Contranomy/Core/SharedTypes.hs	15;"	=	type:BitVector 32
+OR	src/Contranomy/Assembly.hs	66;"	c	term:OR Rd Rs1 Rs2
+ORI	src/Contranomy/Assembly.hs	53;"	c	term:ORI Rd Rs1 Imm12
+Opcode	src/Contranomy/Assembly.hs	24;"	=	type:BitVector 7
+PC	src/Contranomy/Core/SharedTypes.hs	16;"	=	type:BitVector 32
+Pred	src/Contranomy/Assembly.hs	25;"	=	type:BitVector 3
+REM	src/Contranomy/Assembly.hs	77;"	c	term:REM Rd Rs1 Rs2
+REMU	src/Contranomy/Assembly.hs	78;"	c	term:REMU Rd Rs1 Rs2
+RType	src/Contranomy/Assembly.hs	82;"	c	term:RType Opcode Rd Rs1 Rs2 Funct3 Funct7
+RVFI	src/Contranomy/RVFI.hs	18;"	c	term:RVFI {valid :: "rvfi_valid" ::: Bool, order :: "rvfi_order" ::: Unsigned 64, insn :: "rvfi_insn" ::: BitVector 32, trap :: "rvfi_trap" ::: Bool, halt :: "rvfi_halt" ::: Bool, intr :: "rvfi_intr" ::: Bool, mode :: "rvfi_mode" ::: BitVector 2, ixl :: "rvfi_ixl" ::: BitVector 2, rs1Addr :: "rvfi_rs1_addr" ::: Register, rs2Addr :: "rvfi_rs2_addr" ::: Register, rs1RData :: "rvfi_rs1_rdata" ::: BitVector 32, rs2RData :: "rvfi_rs2_rdata" ::: BitVector 32, rdAddr :: "rvfi_rd_addr" ::: Register, rdWData :: "rvfi_rd_wdata" ::: BitVector 32, pcRData :: "rvfi_pc_rdata" ::: BitVector 32, pcWData :: "rvfi_pc_wdata" ::: BitVector 32, memAddr :: "rvfi_mem_addr" ::: BitVector 32, memRMask :: "rvfi_mem_rmask" ::: BitVector 4, memWMask :: "rvfi_mem_wmask" ::: BitVector 4, memRData :: "rvfi_mem_rdata" ::: BitVector 32, memWData :: "rvfi_mem_wdata" ::: BitVector 32, misaCSR :: "rvfi_csr_misa" ::: RVFICSR}
+RVFICSR	src/Contranomy/RVFI.hs	45;"	c	term:RVFICSR {rmask :: "rmask" ::: BitVector 32, wmask :: "wmask" ::: BitVector 32, rdata :: "rdata" ::: BitVector 32, wdata :: "wdata" ::: BitVector 32}
+Rd	src/Contranomy/Assembly.hs	15;"	=	type:BitVector 5
+Rs1	src/Contranomy/Assembly.hs	16;"	=	type:BitVector 5
+Rs2	src/Contranomy/Assembly.hs	17;"	=	type:BitVector 5
+SB	src/Contranomy/Assembly.hs	46;"	c	term:SB Rs1 Rs2 Imm12
+SH	src/Contranomy/Assembly.hs	47;"	c	term:SH Rs1 Rs2 Imm12
+SLL	src/Contranomy/Assembly.hs	60;"	c	term:SLL Rd Rs1 Rs2
+SLLI	src/Contranomy/Assembly.hs	55;"	c	term:SLLI Rd Rs1 Shamt
+SLT	src/Contranomy/Assembly.hs	61;"	c	term:SLT Rd Rs1 Rs2
+SLTI	src/Contranomy/Assembly.hs	50;"	c	term:SLTI Rd Rs1 Imm12
+SLTIU	src/Contranomy/Assembly.hs	51;"	c	term:SLTIU Rd Rs1 Imm12
+SLTU	src/Contranomy/Assembly.hs	62;"	c	term:SLTU Rd Rs1 Rs2
+SRA	src/Contranomy/Assembly.hs	65;"	c	term:SRA Rd Rs1 Rs2
+SRAI	src/Contranomy/Assembly.hs	57;"	c	term:SRAI Rd Rs1 Shamt
+SRL	src/Contranomy/Assembly.hs	64;"	c	term:SRL Rd Rs1 Rs2
+SRLI	src/Contranomy/Assembly.hs	56;"	c	term:SRLI Rd Rs1 Shamt
+SType	src/Contranomy/Assembly.hs	84;"	c	term:SType Opcode Rs1 Rs2 Funct3 Imm12
+SUB	src/Contranomy/Assembly.hs	59;"	c	term:SUB Rd Rs1 Rs2
+SW	src/Contranomy/Assembly.hs	48;"	c	term:SW Rs1 Rs2 Imm12
+Shamt	src/Contranomy/Assembly.hs	27;"	=	type:BitVector 5
+SoftwareInterrupt	src/Contranomy/Core.hs	38;"	=	type:Bool
+Succ	src/Contranomy/Assembly.hs	26;"	=	type:BitVector 4
+Tests.Contranomy.Core.ALU	tests/Tests/Contranomy/Core/ALU.hs	3;"	M
+TimerInterrupt	src/Contranomy/Core.hs	37;"	=	type:Bool
+UType	src/Contranomy/Assembly.hs	86;"	c	term:UType Opcode Rd Imm21U
+XOR	src/Contranomy/Assembly.hs	63;"	c	term:XOR Rd Rs1 Rs2
+XORI	src/Contranomy/Assembly.hs	52;"	c	term:XORI Rd Rs1 Imm12
+accessFault	src/Contranomy/Core/CoreState.hs	18;"	r
+addData	bin/SimContranomy.hs	44;"	f
+addrByte	src/Contranomy/Println.hs	27;"	f	file:
+alignPC	src/Contranomy/Core/SharedTypes.hs	20;"	f
+aligned	src/Contranomy/Core/LoadStore.hs	104;"	f
+alignment	src/Contranomy/Core/LoadStore.hs	102;"	f
+alu	src/Contranomy/Core/ALU.hs	63;"	f
+aluArg1	src/Contranomy/Core/ALU.hs	71;"	f	file:
+aluArg2	src/Contranomy/Core/ALU.hs	77;"	f	file:
+aluArg2Shamt	src/Contranomy/Core/ALU.hs	89;"	f	file:
+aluOp	src/Contranomy/Core/ALU.hs	91;"	f	file:
+aluResult	src/Contranomy/Core/ALU.hs	96;"	f	file:
+bitB	src/Contranomy/Clash/Extra.hs	52;"	f
+bitsDownTo	src/Contranomy/Clash/Extra.hs	48;"	f
+boolToBitVector	src/Contranomy/Clash/Extra.hs	40;"	f
+branchUnit	src/Contranomy/Core/Branch.hs	37;"	f
+busFinished	src/Contranomy/Core/LoadStore.hs	97;"	f
+bytesToWords	src/Contranomy.hs	102;"	f
+checkWritten	src/Contranomy.hs	96;"	f
+contranomy	src/Contranomy.hs	35;"	f
+contranomy'	src/Contranomy.hs	79;"	f
+contranomyRVFI	src/Contranomy.hs	57;"	f
+contranomyRVFITE	src/Contranomy.hs	68;"	f
+contranomyTE	src/Contranomy.hs	45;"	f
+core	src/Contranomy/Core.hs	69;"	f
+coreIn	src/Contranomy.hs	85;"	f
+coreOut	src/Contranomy/Core.hs	57;"	f
+coreOut1	src/Contranomy.hs	86;"	f
+cpuStart	src/Contranomy/Core.hs	71;"	f
+csrUnit	src/Contranomy/Core/CSR.hs	61;"	f
+csrWrite	src/Contranomy/Core/CSR.hs	164;"	f
+dBusM2S	src/Contranomy/Core.hs	53;"	r
+dBusS2M	src/Contranomy/Core.hs	44;"	r
+dStorage	src/Contranomy.hs	91;"	f
+dWritten	src/Contranomy.hs	93;"	f
+dataAccessFault	src/Contranomy/Core/Exception.hs	32;"	r
+dataAddrMisaligned	src/Contranomy/Core/Exception.hs	33;"	r
+dataM2S	src/Contranomy.hs	89;"	f
+downto	src/Contranomy/Clash/Extra.hs	44;"	f
+externalInterrupt	src/Contranomy/Core/Exception.hs	36;"	r
+externalInterrupt	src/Contranomy/Core.hs	47;"	r
+formatToMachineWord	src/Contranomy/Assembly.hs	94;"	f
+genLinearBounded	tests/Tests/Contranomy/Core/ALU.hs	34;"	f
+getSigned	src/Contranomy/Core/ALU.hs	112;"	f	file:
+getUnsigned	src/Contranomy/Core/ALU.hs	109;"	f	file:
+go	bin/SimContranomy.hs	24;"	f
+halt	src/Contranomy/RVFI.hs	23;"	r
+handleExceptions	src/Contranomy/Core/Exception.hs	60;"	f
+hookPrint	src/Contranomy/Println.hs	13;"	f
+iBusM2S	src/Contranomy/Core.hs	52;"	r
+iBusS2M	src/Contranomy/Core.hs	43;"	r
+iLEN	src/Contranomy/Core/Branch.hs	63;"	f
+iLEN	src/Contranomy/Core/ALU.hs	87;"	f	file:
+iStorage	src/Contranomy.hs	90;"	f
+iWritten	src/Contranomy.hs	92;"	f
+insn	src/Contranomy/RVFI.hs	21;"	r
+instrAccessFault	src/Contranomy/Core/Exception.hs	29;"	r
+instrAddrMisaligned	src/Contranomy/Core/Exception.hs	30;"	r
+instrIllegal	src/Contranomy/Core/Exception.hs	31;"	r
+instruction	src/Contranomy/Core/CoreState.hs	25;"	r
+instructionM2S	src/Contranomy.hs	88;"	f
+instructionToFormat	src/Contranomy/Assembly.hs	116;"	f
+instructionToMachineword	src/Contranomy/Assembly.hs	91;"	f
+intr	src/Contranomy/RVFI.hs	24;"	r
+ixl	src/Contranomy/RVFI.hs	26;"	r
+loadExtend	src/Contranomy/Core/LoadStore.hs	141;"	f
+loadStoreUnit	src/Contranomy/Core/LoadStore.hs	41;"	f
+loadStoreWidth	src/Contranomy/Core/LoadStore.hs	100;"	f
+lower	src/Contranomy/Core/ALU.hs	115;"	f	file:
+machineStart	src/Contranomy/Core.hs	80;"	f
+machineState	src/Contranomy/Core/CoreState.hs	26;"	r
+main	Setup.hs	5;"	f
+main	tests/tests.hs	5;"	f
+main	bin/Clash.hs	6;"	f
+main	bin/Clashi.hs	6;"	f
+main	tests/Tests/Contranomy/Core/ALU.hs	28;"	f
+main	bin/SimContranomy.hs	49;"	f
+mask	src/Contranomy/Core/LoadStore.hs	112;"	f
+mealyAuto	src/Contranomy/Clash/Extra.hs	18;"	f
+mealyAutoB	src/Contranomy/Clash/Extra.hs	33;"	f
+memAddr	src/Contranomy/RVFI.hs	35;"	r
+memRData	src/Contranomy/RVFI.hs	38;"	r
+memRMask	src/Contranomy/RVFI.hs	36;"	r
+memWData	src/Contranomy/RVFI.hs	39;"	r
+memWMask	src/Contranomy/RVFI.hs	37;"	r
+misaCSR	src/Contranomy/RVFI.hs	40;"	r
+mode	src/Contranomy/RVFI.hs	25;"	r
+multdiv	tests/Tests/Contranomy/Core/ALU.hs	31;"	f
+multdiv	src/Contranomy/Core/ALU.hs	124;"	f
+multdivFormal	src/Contranomy/Core/ALU.hs	130;"	f
+multdivSim	src/Contranomy/Core/ALU.hs	141;"	f
+old	src/Contranomy/RegisterFile.hs	44;"	f
+order	src/Contranomy/RVFI.hs	20;"	r
+pChar	src/Contranomy/Println.hs	23;"	f	file:
+pChars	src/Contranomy/Println.hs	20;"	f	file:
+pc	src/Contranomy/Core/CoreState.hs	24;"	r
+pcRData	src/Contranomy/RVFI.hs	33;"	r
+pcWData	src/Contranomy/RVFI.hs	34;"	r
+prop_div_zero	tests/Tests/Contranomy/Core/ALU.hs	51;"	f
+prop_div_zero_div	tests/Tests/Contranomy/Core/ALU.hs	62;"	f
+prop_div_zero_divu	tests/Tests/Contranomy/Core/ALU.hs	56;"	f
+prop_div_zero_rem	tests/Tests/Contranomy/Core/ALU.hs	65;"	f
+prop_div_zero_remu	tests/Tests/Contranomy/Core/ALU.hs	59;"	f
+rdAddr	src/Contranomy/RVFI.hs	31;"	r
+rdWData	src/Contranomy/RVFI.hs	32;"	r
+rdata	src/Contranomy/RVFI.hs	48;"	r
+readElf	bin/SimContranomy.hs	20;"	f
+regMaybeNext	src/Contranomy/RegisterFile.hs	42;"	f
+registerFile	src/Contranomy/RegisterFile.hs	28;"	f
+rmask	src/Contranomy/RVFI.hs	46;"	r
+rs1Addr	src/Contranomy/RVFI.hs	27;"	r
+rs1RData	src/Contranomy/RVFI.hs	29;"	r
+rs2Addr	src/Contranomy/RVFI.hs	28;"	r
+rs2RData	src/Contranomy/RVFI.hs	30;"	r
+runState'	src/Contranomy/Clash/Extra.hs	25;"	f
+rvfi	src/Contranomy/RVFI.hs	54;"	f
+rvfiCSR	src/Contranomy/RVFI.hs	81;"	f
+rvfiOrder	src/Contranomy/Core/CoreState.hs	27;"	r
+shiftAmount	src/Contranomy/Core/LoadStore.hs	124;"	f
+signedQuot	src/Contranomy/Core/ALU.hs	161;"	f	file:
+signedRem	src/Contranomy/Core/ALU.hs	167;"	f	file:
+softwareInterrupt	src/Contranomy/Core/Exception.hs	35;"	r
+softwareInterrupt	src/Contranomy/Core.hs	46;"	r
+stage	src/Contranomy/Core/CoreState.hs	23;"	r
+test_overflow_div	tests/Tests/Contranomy/Core/ALU.hs	68;"	f
+test_overflow_rem	tests/Tests/Contranomy/Core/ALU.hs	71;"	f
+tests	tests/Tests/Contranomy/Core/ALU.hs	74;"	f
+timerInterrupt	src/Contranomy/Core/Exception.hs	34;"	r
+timerInterrupt	src/Contranomy/Core.hs	45;"	r
+toRVFI	src/Contranomy/Core/RVFI.hs	46;"	f
+transition	src/Contranomy/Core.hs	98;"	f
+trap	src/Contranomy/RVFI.hs	22;"	r
+tupToCoreIn	src/Contranomy.hs	82;"	f
+unsignedQuot	src/Contranomy/Core/ALU.hs	153;"	f	file:
+unsignedRem	src/Contranomy/Core/ALU.hs	157;"	f	file:
+upper	src/Contranomy/Core/ALU.hs	118;"	f	file:
+valid	src/Contranomy/RVFI.hs	19;"	r
+wdata	src/Contranomy/RVFI.hs	49;"	r
+wmask	src/Contranomy/RVFI.hs	47;"	r
+wordToBytes	src/Contranomy.hs	107;"	f
+wordsToBytes	src/Contranomy.hs	114;"	f
