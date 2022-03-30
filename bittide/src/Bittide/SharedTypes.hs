@@ -11,6 +11,7 @@ import Data.Constraint.Nat.Extra
 
 type AtLeastOne n = (KnownNat n, 1 <= n)
 type Byte = BitVector 8
+type Bytes n = BitVector (n*8)
 type ByteEnable bytes = BitVector bytes
 type DataLink frameWidth = Maybe (BitVector frameWidth)
 type LessThan a b = (KnownNat a, KnownNat b, a <= b)
