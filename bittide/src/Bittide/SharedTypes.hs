@@ -24,6 +24,7 @@ type WriteAny maxIndex any = Maybe (Index maxIndex, any)
 type WriteBits maxIndex bits = Maybe (Index maxIndex, BitVector bits)
 type WriteByte maxIndex = Maybe (Index maxIndex, BitVector 8)
 type WriteBytes maxIndex bytes = Maybe (Index maxIndex, BitVector (bytes * 8))
+type MemoryMap slaveDevices addressWidth = Vec slaveDevices (BitVector addressWidth)
 
 type Pad a bw  = (Regs a bw * bw) - BitSize a
 type Regs a bw = DivRU (BitSize a) bw

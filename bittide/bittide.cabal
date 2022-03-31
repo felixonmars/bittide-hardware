@@ -76,9 +76,10 @@ library
   exposed-modules:
     Bittide.Calendar
     Bittide.DoubleBufferedRAM
+    Bittide.MemoryMap
     Bittide.ScatterGather
-    Bittide.Switch
     Bittide.SharedTypes
+    Bittide.Switch
     Data.Constraint.Nat.Extra
 
 executable clash
