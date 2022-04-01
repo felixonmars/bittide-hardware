@@ -18,3 +18,8 @@ build-loaded-program:
 sim-loader: build-sim build-loader
 	cp target/riscv32imc-unknown-none-elf/release/contranomy-loader contranomy/main.elf
 	cd contranomy; cabal run simcontranomy -w $(GHC)
+
+.PHONY: sim-loaded-program
+sim-loaded-program: build-sim build-loader
+	cp target/riscv32imc-unknown-none-elf/release/contranomy-loaded-program contranomy/main.elf
+	cd contranomy; cabal run simcontranomy -w $(GHC)
