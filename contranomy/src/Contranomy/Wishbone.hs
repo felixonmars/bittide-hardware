@@ -152,9 +152,24 @@ instructionStorage name initial aM2S bM2S = (aS2M, bS2M)
   aActive = strobe <$> aM2S .&&. busCycle <$> aM2S
   bActive = strobe <$> bM2S .&&. busCycle <$> bM2S
   aWriting = aActive .&&. writeEnable <$> aM2S
-  storageIn = mux bActive bM2S (noWrite <$> aM2S)
-  aS2M = mux bActive (noAck <$> storageOut) (writeIsErr <$> storageOut <*> aWriting)
+
+  storageIn = mux (not <$> bActive) (noWrite <$> aM2S) bM2S
+
+  aS2M = mux (not <$> bActive) (writeIsErr <$> storageOut <*> aWriting) (noAck <$> storageOut)
   bS2M = storageOut
+
   noAck wb = wb{acknowledge = False, err = False}
   noWrite wb = wb{writeEnable = False}
   writeIsErr wb write = wb{err = err wb || write}
+
+idleM2S :: (KnownNat bytes, KnownNat addressWidth) => WishboneM2S bytes addressWidth
+idleM2S = WishboneM2S
+  { addr = 0
+  , writeData = 0
+  , busSelect = 0
+  , busCycle = False
+  , strobe = False
+  , writeEnable = False
+  , cycleTypeIdentifier = Classic
+  , burstTypeExtension = LinearBurst
+  }
