@@ -108,6 +108,7 @@ library
     Contranomy.Assembly
     Contranomy.Wishbone
 
+    Contranomy.MemoryMap
     Contranomy.Println
 
   build-depends:

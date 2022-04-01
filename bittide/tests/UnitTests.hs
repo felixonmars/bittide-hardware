@@ -9,10 +9,12 @@ import Test.Tasty
 
 import Tests.Calendar
 import Tests.DoubleBufferedRAM
+import Tests.ScatterGather
+import Tests.Switch
 
 tests :: TestTree
 tests = testGroup "Unittests"
-  [calGroup, ramGroup]
+  [calGroup, sgGroup, switchGroup, ramGroup]
 
 main :: IO ()
 main = defaultMain tests

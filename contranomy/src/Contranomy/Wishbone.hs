@@ -37,7 +37,7 @@ data WishboneM2S bytes addressWidth
   , cycleTypeIdentifier :: "CTI" ::: CycleTypeIdentifier
     -- | BTE
   , burstTypeExtension :: "BTE" ::: BurstTypeExtension
-  }
+  } deriving (Generic, NFDataX, Show, Eq)
 
 data WishboneS2M bytes
   = WishboneS2M
@@ -47,9 +47,9 @@ data WishboneS2M bytes
   , acknowledge :: "ACK" ::: Bool
     -- | ERR
   , err :: "ERR" ::: Bool
-  } deriving (Generic, NFDataX)
+  } deriving (Generic, NFDataX, Show, Eq)
 
-newtype CycleTypeIdentifier = CycleTypeIdentifier (BitVector 3)
+newtype CycleTypeIdentifier = CycleTypeIdentifier (BitVector 3) deriving (Generic, NFDataX, Show, Eq)
 
 pattern Classic, ConstantAddressBurst, IncrementingBurst, EndOfBurst :: CycleTypeIdentifier
 pattern Classic = CycleTypeIdentifier 0
@@ -62,7 +62,7 @@ data BurstTypeExtension
   | Beat4Burst
   | Beat8Burst
   | Beat16Burst
-
+  deriving (Generic, NFDataX, Show, Eq)
 wishboneM2S :: SNat bytes -> SNat addressWidth -> WishboneM2S bytes addressWidth
 wishboneM2S SNat SNat
   = WishboneM2S
@@ -136,3 +136,40 @@ wishboneStorage' name state inputs = dataOut :- (wishboneStorage' name state' in
   half1 = [byte2, byte3]
   word0  = [byte0, byte1, byte2, byte3]
   dataOut = WishboneS2M{readData = readData, acknowledge = ack, err = False}
+
+-- | Wrapper for the wishboneStorage that allows two ports to be connected.
+-- Port A can only be used for reading, port B can read and write to the te storage.
+-- Writing from port A is illegal and write attempts will set the err signal.
+instructionStorage
+  :: String
+  -> I.IntMap (BitVector 8)
+  -> Signal dom (WishboneM2S Bytes AddressWidth)
+  -> Signal dom (WishboneM2S Bytes AddressWidth)
+  -> (Signal dom (WishboneS2M 4),Signal dom (WishboneS2M 4))
+instructionStorage name initial aM2S bM2S = (aS2M, bS2M)
+ where
+  storageOut = wishboneStorage name initial storageIn
+  aActive = strobe <$> aM2S .&&. busCycle <$> aM2S
+  bActive = strobe <$> bM2S .&&. busCycle <$> bM2S
+  aWriting = aActive .&&. writeEnable <$> aM2S
+
+  storageIn = mux (not <$> bActive) (noWrite <$> aM2S) bM2S
+
+  aS2M = mux (not <$> bActive) (writeIsErr <$> storageOut <*> aWriting) (noAck <$> storageOut)
+  bS2M = storageOut
+
+  noAck wb = wb{acknowledge = False, err = False}
+  noWrite wb = wb{writeEnable = False}
+  writeIsErr wb write = wb{err = err wb || write}
+
+idleM2S :: (KnownNat bytes, KnownNat addressWidth) => WishboneM2S bytes addressWidth
+idleM2S = WishboneM2S
+  { addr = 0
+  , writeData = 0
+  , busSelect = 0
+  , busCycle = False
+  , strobe = False
+  , writeEnable = False
+  , cycleTypeIdentifier = Classic
+  , burstTypeExtension = LinearBurst
+  }

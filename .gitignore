@@ -61,7 +61,11 @@ _build/
 riscv-formal/cores/contranomy/
 
 # Rust build files
+<<<<<<< HEAD
 target/
+=======
+contranomy-rust-starter/target
+>>>>>>> origin/contranomy-mem-mapped-instructions
 
 # Compiled Rust starter ELF file
 contranomy/main.elf
