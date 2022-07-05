@@ -116,7 +116,7 @@ contentGenerator content@(Cons _ _) = (mux (running .&&. not <$> done) writeOp (
 -- which priorities port A over port B. Transactions are not aborted, but when two transactions
 -- are initiated at the same time, port A will have priority.
 wbStorageDP ::
-  forall dom depth aw .
+  forall dom depth initDepth aw .
   ( HiddenClockResetEnable dom
   , KnownNat aw, 2 <= aw
   , KnownNat depth, 1 <= depth) =>
@@ -146,7 +146,7 @@ wbStorageDP initial aM2S bM2S = (aS2M, bS2M)
 -- | Wishbone storage element with 'Circuit' interface from "Protocols.Wishbone" that
 -- allows for half-word aligned reads and writes.
 wbStorage ::
-  forall dom depth aw .
+  forall dom depth initDepth aw .
   ( HiddenClockResetEnable dom
   , KnownNat aw, 2 <= aw
   , KnownNat depth, 1 <= depth) =>
