@@ -84,6 +84,7 @@ library
     random,
     template-haskell
   exposed-modules:
+    Bittide.Layout
     Bittide.Simulate
     Bittide.Simulate.Ppm
     Bittide.Topology

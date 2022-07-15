@@ -22,6 +22,7 @@ import Clash.Signal.Internal
 import Data.Bifunctor (second)
 import GHC.Stack
 import Numeric.Natural
+import Data.Bifunctor (second)
 
 import Bittide.Simulate.Ppm
 
@@ -211,6 +212,10 @@ defClockConfig = ClockControlConfig
  where
   specPpm = 100
   pessimisticPeriod = speedUpPeriod specPpm specPeriod
+
+-- we use 200kHz in simulation
+specPeriod :: PeriodPs
+specPeriod = hzToPeriod 200e3
 
 -- | Determines how to influence clock frequency given statistics provided by
 -- all elastic buffers.
