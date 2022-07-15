@@ -69,6 +69,29 @@ common common-options
 library
   import: common-options
   hs-source-dirs: src
+  build-depends:
+    cassava,
+    random,
+    bytestring
   exposed-modules:
+    Bittide.Layout
     Bittide.Simulate
+    Arithmetic
   default-language: Haskell2010
+
+test-suite unittests
+  import:           common-options
+  type:             exitcode-stdio-1.0
+  main-is:          unittests.hs
+  ghc-options:      -Wall -Wcompat -threaded -with-rtsopts=-N
+  default-language: Haskell2010
+  hs-source-dirs:   tests
+  other-modules:
+    Tests.Bittide.Simulate
+  build-depends:
+      base
+    , elastic-buffer-sim
+    , clash-prelude
+    , tasty
+    , tasty-hedgehog
+    , tasty-hunit

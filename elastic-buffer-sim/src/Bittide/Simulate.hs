@@ -10,11 +10,19 @@ TODO:
 
 -}
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Bittide.Simulate where
 
+import Data.Csv
+import Data.Bifunctor (second)
 import Clash.Prelude
 import Clash.Signal.Internal
 import Numeric.Natural
+
+-- 200kHz instead of 200MHz; otherwise the periods are so small that deviations
+-- can't be expressed as 'Natural's
+createDomain vSystem{vName="Bittide", vPeriod=hzToPeriod 200e3}
 
 -- Number of type aliases for documentation purposes in various functions defined
 -- down below.
@@ -35,6 +43,12 @@ data SpeedChange
   = SpeedUp
   | SlowDown
   | NoChange
+  deriving (Eq,Show,Generic,NFDataX)
+
+instance ToField SpeedChange where
+  toField SpeedUp = "speedUp"
+  toField SlowDown = "slowDown"
+  toField NoChange = "noChange"
 
 -- | Simple model of the Si5395/Si5391 clock multipliers. In real hardware, these
 -- are connected to some oscillator (i.e., incoming Clock) but for simulation purposes
@@ -64,11 +78,13 @@ clockTuner ::
   -- | Clock with a dynamic frequency. At the time of writing, Clash primitives don't
   -- account for this yet, so be careful when using them. Note that dynamic frequencies
   -- are only relevant for components handling multiple domains.
-  Clock dom
-clockTuner periodOffset stepSize _reset =
+  (Signal dom Natural, Clock dom)
+clockTuner periodOffset stepSize _reset speedChange =
   case knownDomain @dom of
     SDomainConfiguration _ (snatToNum -> period) _ _ _ _ ->
-      DClock SSymbol . Just . go (fromIntegral (period + periodOffset))
+      let initPeriod = fromIntegral (period + periodOffset)
+          clockSignal = initPeriod :- go initPeriod speedChange in
+      (clockSignal, DClock SSymbol (Just clockSignal))
  where
   go :: StepSize -> Signal dom SpeedChange -> Signal dom StepSize
   go !period (sc :- scs) =
@@ -101,7 +117,7 @@ elasticBuffer ::
   Clock writeDom ->
   Signal readDom DataCount
 elasticBuffer size (DClock _ (Just readPeriods)) (DClock _ (Just writePeriods)) =
-  go 0 (targetDataCount size) readPeriods writePeriods
+  targetDataCount size :- go 0 (targetDataCount size) readPeriods writePeriods
  where
   go !relativeTime !fillLevel rps wps@(writePeriod :- _) =
     if relativeTime < toInteger writePeriod
@@ -109,10 +125,18 @@ elasticBuffer size (DClock _ (Just readPeriods)) (DClock _ (Just writePeriods)) 
     else goWrite relativeTime fillLevel rps wps
 
   goWrite !relativeTime !fillLevel rps (writePeriod :- wps) =
-    (fillLevel + 1) :- go (relativeTime - toInteger writePeriod) (fillLevel + 1) rps wps
+    newFillLevel :- go (relativeTime - toInteger writePeriod) newFillLevel rps wps
+   where
+    newFillLevel
+      | fillLevel == size = size
+      | otherwise         = fillLevel + 1
 
   goRead relativeTime fillLevel (readPeriod :- rps) wps =
-    (fillLevel - 1) :- go (relativeTime + toInteger readPeriod) (fillLevel - 1) rps wps
+    newFillLevel :- go (relativeTime + toInteger readPeriod) newFillLevel rps wps
+   where
+    newFillLevel
+      | fillLevel == 0 = 0
+      | otherwise      = fillLevel - 1
 
 elasticBuffer size (DClock ss Nothing) clock1 =
   -- Convert read clock to a "dynamic" clock if it isn't one
@@ -125,6 +149,10 @@ elasticBuffer size clock0 (DClock ss Nothing) =
   case knownDomain @writeDom of
     SDomainConfiguration _ (snatToNum -> period) _ _ _ _ ->
       elasticBuffer size clock0 (DClock ss (Just (pure period)))
+
+-- FIXME: this should be handling max/min?
+--
+-- takes in offsets, max./min., step size
 
 -- | Determines how to influence clock frequency given statistics provided by
 -- all elastic buffers.
@@ -140,28 +168,37 @@ elasticBuffer size clock0 (DClock ss Nothing) =
 clockControl ::
   forall n dom.
   (KnownNat n, KnownDomain dom, 1 <= n) =>
-  -- | Maximum divergence from initial clock frequency. Used to prevent frequency
-  -- runoff.
-  DynamicRange ->
   -- | The size of the clock frequency should "jump" on a speed change request.
   StepSize ->
+  -- | Minimum offset
+  Integer ->
+  -- | Maximum offset
+  Integer ->
   -- | Size of elastic buffers. Used to observe bounds and 'targetDataCount'.
   ElasticBufferSize ->
   -- | Statistics provided by elastic buffers.
   Vec n (Signal dom DataCount) ->
   -- | Whether to adjust node clock frequency
   Signal dom SpeedChange
-clockControl _dynamicRange _stepSize elasticBufferSize = go 0 . bundle
+clockControl step mi ma elasticBufferSize ebs = res
  where
-  go :: Word -> Signal dom (Vec n DataCount) -> Signal dom SpeedChange
-  go 0 (currentSizes :- dataCounts) = speedChange :- go 200 dataCounts
+  (_, res) = go 0 (bundle ebs) 0
+
+  go ::
+    Natural ->
+    Signal dom (Vec n DataCount) ->
+    Integer ->
+    (Integer, Signal dom SpeedChange)
+  go 0 ~(currentSizes :- dataCounts) offs =
+    second (speedChange :-) (go 200 dataCounts nextOffs)
    where
-    speedChange =
+    (speedChange, nextOffs) =
       let
         average = sum currentSizes `div` fromIntegral (length currentSizes)
       in case compare average (targetDataCount elasticBufferSize) of
-        LT -> SlowDown
-        EQ -> NoChange
-        GT -> SpeedUp
+        LT | offs + toInteger step <= ma -> (SlowDown, offs + toInteger step)
+        GT | offs - toInteger step >= mi -> (SpeedUp, offs - toInteger step)
+        _ -> (NoChange, offs)
 
-  go counter (_ :- dataCounts) = NoChange :- go (pred counter) dataCounts
+  go counter ~(_ :- dataCounts) offs =
+    second (NoChange :-) (go (pred counter) dataCounts offs)
