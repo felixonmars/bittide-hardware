@@ -17,7 +17,7 @@ dumpCsv = do
   o1 <- genOffs
   o2 <- genOffs
   o3 <- genOffs
-  writeFile "clocks.csv" "clk0,eb0,,clk1,eb1,,clk2,eb2,,\n"
+  writeFile "clocks.csv" "clk0,eb01,eb02,,clk1,eb10,eb12,,clk2,eb20,eb21,,\n"
   BSL.appendFile "clocks.csv"
     $ encode
     $ sampleN 10000000
@@ -84,10 +84,13 @@ threeNodes ::
   Offset ->
   ( Signal dom1 Natural
   , Signal dom1 Natural
+  , Signal dom1 Natural
   , Signal dom1 SpeedChange
   , Signal dom2 Natural
   , Signal dom2 Natural
+  , Signal dom2 Natural
   , Signal dom2 SpeedChange
+  , Signal dom3 Natural
   , Signal dom3 Natural
   , Signal dom3 Natural
   , Signal dom3 SpeedChange
@@ -95,12 +98,15 @@ threeNodes ::
 threeNodes offs0 offs1 offs2 =
   ( clk0Signal
   , eb01
+  , eb02
   , clockControl0
   , clk1Signal
   , eb10
+  , eb12
   , clockControl1
   , clk2Signal
   , eb20
+  , eb21
   , clockControl2
   )
  where
