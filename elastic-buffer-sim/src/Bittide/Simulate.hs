@@ -49,7 +49,7 @@ data SpeedChange
 clockTuner ::
   forall dom.
   KnownDomain dom =>
-  -- | Offset from the ideal period (encoded in the domain) of thiss clock. For
+  -- | Offset from the ideal period (encoded in the domain) of this clock. For
   -- the Si5395/Si5391 oscillators, this value lies between ±100 ppm.
   Offset ->
   -- | The size of the clock frequency should "jump" on a speed change request.
