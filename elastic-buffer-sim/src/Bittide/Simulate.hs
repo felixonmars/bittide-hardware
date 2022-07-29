@@ -159,10 +159,6 @@ elasticBuffer size clock0 (DClock ss Nothing) =
 --
 -- TODO:
 --
---   * Account for dynamic ranges: although our clock adjusters / multipliers can
---     arbitrarily adjust clocks, we should stay within bounds to prevent frequency
---     runoff.
---
 --   * Generalize to make it easy to "swap" strategies?
 --
 clockControl ::
@@ -189,8 +185,8 @@ clockControl step mi ma elasticBufferSize ebs = res
     Signal dom (Vec n DataCount) ->
     Integer ->
     (Integer, Signal dom SpeedChange)
-  go 0 ~(currentSizes :- dataCounts) offs =
-    second (speedChange :-) (go 200 dataCounts nextOffs)
+  go 0 (currentSizes :- dataCounts) offs =
+    nextOffs `seq` second (speedChange :-) (go 200 dataCounts nextOffs)
    where
     (speedChange, nextOffs) =
       let
@@ -200,5 +196,5 @@ clockControl step mi ma elasticBufferSize ebs = res
         GT | offs - toInteger step >= mi -> (SpeedUp, offs - toInteger step)
         _ -> (NoChange, offs)
 
-  go counter ~(_ :- dataCounts) offs =
+  go counter (_ :- dataCounts) offs =
     second (NoChange :-) (go (pred counter) dataCounts offs)

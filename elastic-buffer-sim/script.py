@@ -2,7 +2,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # generate data from dumpCsv
-df=pd.read_csv('clocks.csv')
+df0=pd.read_csv('clocks0.csv')
+df1=pd.read_csv('clocks1.csv')
+df2=pd.read_csv('clocks2.csv')
+
+df=pd.concat([df0,df1,df2],axis=0)
+
 df[['eb01','eb02','eb10','eb12','eb20','eb21']].plot()
 plt.xlabel('Time (ps)')
 plt.ylabel('Elastic buffer occupancy')

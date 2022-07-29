@@ -27,12 +27,16 @@ dumpCsv n = do
   o1 <- genOffs
   o2 <- genOffs
   o3 <- genOffs
-  writeFile "clocks0.csv" "t,clk0,eb01,eb02,,\n"
-  writeFile "clocks1.csv" "t,clk1,eb10,eb12,,\n"
-  writeFile "clocks2.csv" "t,clk2,eb20,eb21,,\n"
+  writeFile "clocks0.csv" "t,clk0,eb01,eb02\n"
+  writeFile "clocks1.csv" "t,clk1,eb10,eb12\n"
+  writeFile "clocks2.csv" "t,clk2,eb20,eb21\n"
   let (d0,d1,d2) =
           on3 (encode . P.take n)
-        $ (\(c0, e00, e01, c1, e10, e11, c2, e20, e21) -> (timeClock (bundle (c0, e00, e01)), timeClock (bundle (c1, e10, e11)), timeClock (bundle (c2, e20, e21))))
+        $ (\(c0, e00, e01, c1, e10, e11, c2, e20, e21) ->
+            ( timeClock (bundle (c0, e00, e01))
+            , timeClock (bundle (c1, e10, e11)),
+            timeClock (bundle (c2, e20, e21))
+            ))
         $ threeNodes @Bittide @Bittide @Bittide o1 o2 o3
   BSL.appendFile "clocks0.csv" d0
   BSL.appendFile "clocks1.csv" d1
@@ -101,29 +105,23 @@ threeNodes ::
   ( Signal dom1 Natural
   , Signal dom1 Natural
   , Signal dom1 Natural
-  -- , Signal dom1 SpeedChange
   , Signal dom2 Natural
   , Signal dom2 Natural
   , Signal dom2 Natural
-  -- , Signal dom2 SpeedChange
   , Signal dom3 Natural
   , Signal dom3 Natural
   , Signal dom3 Natural
-  -- , Signal dom3 SpeedChange
   )
 threeNodes offs0 offs1 offs2 =
   ( clk0Signal
   , eb01
   , eb02
-  -- , clockControl0
   , clk1Signal
   , eb10
   , eb12
-  -- , clockControl1
   , clk2Signal
   , eb20
   , eb21
-  -- , clockControl2
   )
  where
 
@@ -148,3 +146,4 @@ threeNodes offs0 offs1 offs2 =
   -- +/- 150ppm
   mi = minTOffset specPeriod
   ma = maxTOffset specPeriod
+  -- TODO: mi/ma depend on offs0, offs1
