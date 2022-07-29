@@ -27,15 +27,18 @@ dumpCsv n = do
   o1 <- genOffs
   o2 <- genOffs
   o3 <- genOffs
-  writeFile "clocks.csv" "t,clk0,eb01,eb02,,\n" -- clk1,eb10,eb12,,clk2,eb20,eb21,,\n"
-  -- FIXME: sample on a ps-basis?
-  BSL.appendFile "clocks.csv"
-    $ encode
-    $ P.take n
-    -- $ (\(a, b, c) -> P.zipWith3 (\(t,x0,y0,z0) (_,x1,y1,z1) (_,x2,y2,z2) -> (t,x0,y0,z0)) a b c)
-
-    $ (\(c0, e00, e01, c1, c10, c11, c2, c20, c21) -> timeClock (bundle (c0, e00, e01))) -- , timeClock (bundle (c1, c10, c11)), timeClock (bundle (c2, c20, c21))))
-    $ threeNodes @Bittide @Bittide @Bittide o1 o2 o3
+  writeFile "clocks0.csv" "t,clk0,eb01,eb02,,\n"
+  writeFile "clocks1.csv" "t,clk1,eb10,eb12,,\n"
+  writeFile "clocks2.csv" "t,clk2,eb20,eb21,,\n"
+  let (d0,d1,d2) =
+          on3 (encode . P.take n)
+        $ (\(c0, e00, e01, c1, e10, e11, c2, e20, e21) -> (timeClock (bundle (c0, e00, e01)), timeClock (bundle (c1, e10, e11)), timeClock (bundle (c2, e20, e21))))
+        $ threeNodes @Bittide @Bittide @Bittide o1 o2 o3
+  BSL.appendFile "clocks0.csv" d0
+  BSL.appendFile "clocks1.csv" d1
+  BSL.appendFile "clocks2.csv" d2
+ where
+  on3 f (x, y, z) = (f x, f y, f z)
 
 genOffs :: IO Offset
 genOffs =
