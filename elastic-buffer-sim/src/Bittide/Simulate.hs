@@ -89,18 +89,26 @@ clockTuner periodOffset stepSize _reset speedChange =
   case knownDomain @dom of
     SDomainConfiguration _ (snatToNum -> period) _ _ _ _ ->
       let initPeriod = fromIntegral (period + periodOffset)
-          clockSignal = initPeriod :- go initPeriod speedChange in
+          clockSignal = initPeriod :- go 0 initPeriod speedChange in
       (clockSignal, DClock SSymbol (Just clockSignal))
  where
-  go :: StepSize -> Signal dom SpeedChange -> Signal dom StepSize
-  go !period (sc :- scs) =
+  -- only process a speed change every 200 cycles
+  go ::
+    Natural ->
+    StepSize ->
+    Signal dom SpeedChange ->
+    Signal dom PeriodPs
+  go 0 !period (sc :- scs) =
     let
       newPeriod = case sc of
         SpeedUp -> period - stepSize
         SlowDown -> period + stepSize
         NoChange -> period
     in
-      newPeriod :- go newPeriod scs
+      newPeriod :- go 200 newPeriod scs
+
+  go counter period (_ :- scs) =
+    period :- go (pred counter) period scs
 
 -- | Simple model of a FIFO that only models the interesting part for conversion: data
 -- counts.
@@ -185,6 +193,8 @@ clockControl step ppm elasticBufferSize ebs = res
  where
   (_, res) = go 0 (bundle ebs) 0
 
+  -- we only need to adjust offset every 200 cycles, because the clock tuner
+  -- only processes that often
   go ::
     Natural ->
     Signal dom (Vec n DataCount) ->
@@ -200,7 +210,6 @@ clockControl step ppm elasticBufferSize ebs = res
         LT | offs + toInteger step <= ma -> (SlowDown, offs + toInteger step)
         GT | offs - toInteger step >= mi -> (SpeedUp, offs - toInteger step)
         _ -> (NoChange, offs)
-
   go counter (_ :- dataCounts) offs =
     second (NoChange :-) (go (pred counter) dataCounts offs)
 
