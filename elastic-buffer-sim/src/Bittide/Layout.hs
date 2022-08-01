@@ -31,12 +31,7 @@ dumpCsv n = do
   writeFile "clocks1.csv" "t,clk1,eb10,eb12\n"
   writeFile "clocks2.csv" "t,clk2,eb20,eb21\n"
   let (dat0, dat1, dat2) =
-          on3 (encode . P.take n)
-        $ (\(c0, e00, e01, c1, e10, e11, c2, e20, e21) ->
-            ( timeClock (bundle (c0, e00, e01))
-            , timeClock (bundle (c1, e10, e11))
-            , timeClock (bundle (c2, e20, e21))
-            ))
+          on3 (encode . P.take n . timeClock . bundle)
         $ threeNodes @Bittide @Bittide @Bittide o1 o2 o3
   BSL.appendFile "clocks0.csv" dat0
   BSL.appendFile "clocks1.csv" dat1
@@ -89,26 +84,36 @@ threeNodes ::
   Offset ->
   Offset ->
   Offset ->
-  ( Signal dom1 PeriodPs
-  , Signal dom1 DataCount
-  , Signal dom1 DataCount
-  , Signal dom2 PeriodPs
-  , Signal dom2 DataCount
-  , Signal dom2 DataCount
-  , Signal dom3 PeriodPs
-  , Signal dom3 DataCount
-  , Signal dom3 DataCount
+  (
+    ( Signal dom1 PeriodPs
+    , Signal dom1 DataCount
+    , Signal dom1 DataCount
+    )
+  , ( Signal dom2 PeriodPs
+    , Signal dom2 DataCount
+    , Signal dom2 DataCount
+    )
+  , ( Signal dom3 PeriodPs
+    , Signal dom3 DataCount
+    , Signal dom3 DataCount
+    )
   )
 threeNodes offs0 offs1 offs2 =
-  ( clk0Signal
-  , eb01
-  , eb02
-  , clk1Signal
-  , eb10
-  , eb12
-  , clk2Signal
-  , eb20
-  , eb21
+  (
+    ( clk0Signal
+    , eb01
+    , eb02
+    )
+  ,
+    ( clk1Signal
+    , eb10
+    , eb12
+    )
+  ,
+    ( clk2Signal
+    , eb20
+    , eb21
+    )
   )
  where
 
