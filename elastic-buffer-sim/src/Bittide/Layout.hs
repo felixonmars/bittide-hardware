@@ -11,7 +11,7 @@ import qualified Data.ByteString.Lazy as BSL
 import Data.Csv
 import System.Random (randomRIO)
 
-import Arithmetic
+import Bittide.Simulate.Arithmetic
 import Bittide.Simulate
 
 type Ps = Natural

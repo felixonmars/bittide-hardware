@@ -14,12 +14,14 @@ TODO:
 
 module Bittide.Simulate where
 
-import Arithmetic
-import Data.Csv
-import Data.Bifunctor (second)
 import Clash.Prelude
 import Clash.Signal.Internal
+import Data.Bifunctor (second)
 import Numeric.Natural
+
+import Data.Csv
+
+import Bittide.Simulate.Arithmetic
 
 -- 200kHz instead of 200MHz; otherwise the periods are so small that deviations
 -- can't be expressed as 'Natural's
