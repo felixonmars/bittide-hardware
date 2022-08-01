@@ -184,6 +184,9 @@ maxTOffset ppm period = toInteger (slowPeriod ppm period - period)
 clockControl ::
   forall n dom.
   (KnownNat n, KnownDomain dom, 1 <= n) =>
+  -- | Offset from the ideal period (encoded in the domain) of this clock. For
+  -- the Si5395/Si5391 oscillators, this value lies between ±100 ppm.
+  Offset ->
   -- | The size of the clock frequency should "jump" on a speed change request.
   StepSize ->
   -- | Maximum divergence from initial frequency. Used to prevent frequency
@@ -195,7 +198,7 @@ clockControl ::
   Vec n (Signal dom DataCount) ->
   -- | Whether to adjust node clock frequency
   Signal dom SpeedChange
-clockControl step ppm elasticBufferSize ebs = res
+clockControl periodOffset step ppm elasticBufferSize ebs = res
  where
   (_, res) = go 0 (bundle ebs) 0
 
@@ -223,4 +226,4 @@ clockControl step ppm elasticBufferSize ebs = res
   mi = minTOffset ppm domT
   ma = maxTOffset ppm domT
 
-  domT = snatToNum @PeriodPs (clockPeriod @dom)
+  domT = fromInteger (snatToNum @Integer (clockPeriod @dom) + periodOffset)

@@ -27,13 +27,13 @@ tests = testGroup "Simulate"
 case_clockControlMaxBound :: Assertion
 case_clockControlMaxBound = do
   let (change:_) =
-        sampleN 1024 (clockControl @_ @Fast 1 100 128 (pure 128 :> Nil))
+        sampleN 1024 (clockControl @_ @Fast 0 1 100 128 (pure 128 :> Nil))
   change @?= SpeedUp
 
 case_clockControlMinBound :: Assertion
 case_clockControlMinBound = do
   let (change:_) =
-        sampleN 1024 (clockControl @_ @Fast 1 100 128 (pure 0 :> Nil))
+        sampleN 1024 (clockControl @_ @Fast 0 1 100 128 (pure 0 :> Nil))
   change @?= SlowDown
 
 -- | When the elasticBuffer is written to more quickly than it is being read from,
