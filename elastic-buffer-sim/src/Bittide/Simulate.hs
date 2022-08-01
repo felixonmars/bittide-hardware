@@ -11,6 +11,7 @@ TODO:
 -}
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Bittide.Simulate where
 
@@ -211,7 +212,8 @@ clockControl step ppm elasticBufferSize ebs = res
     (speedChange, nextOffs) =
       let
         average = sum currentSizes `div` fromIntegral (length currentSizes)
-      in case compare average (targetDataCount elasticBufferSize) of
+      in mi `seq` ma `seq`
+        case compare average (targetDataCount elasticBufferSize) of
         LT | offs + toInteger step <= ma -> (SlowDown, offs + toInteger step)
         GT | offs - toInteger step >= mi -> (SpeedUp, offs - toInteger step)
         _ -> (NoChange, offs)
