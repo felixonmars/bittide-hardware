@@ -19,7 +19,7 @@ type Ps = Natural
 timeClock :: Signal dom (Natural, a, b) -> [(Ps, Natural, a, b)]
 timeClock = go 0
  where
-  go t ((ᴛ, x, y) :- xs) = (t, ᴛ, x, y) : go (t+ᴛ) xs
+  go t ((period, x, y) :- xs) = (t, period, x, y) : go (t+period) xs
 
 -- | This can be used inside a REPL and fed to @script.py@
 dumpCsv :: Int -> IO ()
@@ -90,8 +90,8 @@ specPeriod :: PeriodPs
 specPeriod = hzToPeriod 200e3
 
 minTOffset, maxTOffset :: PeriodPs -> Integer
-minTOffset ᴛ = toInteger (fastPeriod 150 ᴛ) - toInteger ᴛ
-maxTOffset ᴛ = toInteger (slowPeriod 150 ᴛ - ᴛ)
+minTOffset period = toInteger (fastPeriod 150 period) - toInteger period
+maxTOffset period = toInteger (slowPeriod 150 period - period)
 
 -- | Three nodes, all connected to one another
 threeNodes ::
