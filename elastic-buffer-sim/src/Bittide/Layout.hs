@@ -16,7 +16,7 @@ import Bittide.Simulate
 
 type Ps = Natural
 
-timeClock :: Signal dom (Natural, a, b) -> [(Ps, Natural, a, b)]
+timeClock :: Signal dom (PeriodPs, a, b) -> [(Ps, PeriodPs, a, b)]
 timeClock = go 0
  where
   go t ((period, x, y) :- xs) = (t, period, x, y) : go (t+period) xs
@@ -58,11 +58,11 @@ twoNodes ::
   ) =>
   Offset ->
   Offset ->
-  ( Signal dom1 Natural
-  , Signal dom1 Natural
+  ( Signal dom1 PeriodPs
+  , Signal dom1 DataCount
   , Signal dom1 SpeedChange
-  , Signal dom2 Natural
-  , Signal dom2 Natural
+  , Signal dom2 PeriodPs
+  , Signal dom2 DataCount
   , Signal dom2 SpeedChange
   )
 twoNodes offs0 offs1 =
@@ -89,15 +89,15 @@ threeNodes ::
   Offset ->
   Offset ->
   Offset ->
-  ( Signal dom1 Natural
-  , Signal dom1 Natural
-  , Signal dom1 Natural
-  , Signal dom2 Natural
-  , Signal dom2 Natural
-  , Signal dom2 Natural
-  , Signal dom3 Natural
-  , Signal dom3 Natural
-  , Signal dom3 Natural
+  ( Signal dom1 PeriodPs
+  , Signal dom1 DataCount
+  , Signal dom1 DataCount
+  , Signal dom2 PeriodPs
+  , Signal dom2 DataCount
+  , Signal dom2 DataCount
+  , Signal dom3 PeriodPs
+  , Signal dom3 DataCount
+  , Signal dom3 DataCount
   )
 threeNodes offs0 offs1 offs2 =
   ( clk0Signal
