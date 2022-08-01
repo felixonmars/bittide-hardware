@@ -14,6 +14,7 @@ TODO:
 
 module Bittide.Simulate where
 
+import Arithmetic
 import Data.Csv
 import Data.Bifunctor (second)
 import Clash.Prelude
@@ -78,7 +79,10 @@ clockTuner ::
   -- | Clock with a dynamic frequency. At the time of writing, Clash primitives don't
   -- account for this yet, so be careful when using them. Note that dynamic frequencies
   -- are only relevant for components handling multiple domains.
-  (Signal dom Natural, Clock dom)
+  --
+  -- We also export the clock's period as a 'Signal' so that it can be easily
+  -- observed during simulation.
+  (Signal dom PeriodPs, Clock dom)
 clockTuner periodOffset stepSize _reset speedChange =
   case knownDomain @dom of
     SDomainConfiguration _ (snatToNum -> period) _ _ _ _ ->
@@ -150,9 +154,13 @@ elasticBuffer size clock0 (DClock ss Nothing) =
     SDomainConfiguration _ (snatToNum -> period) _ _ _ _ ->
       elasticBuffer size clock0 (DClock ss (Just (pure period)))
 
--- FIXME: this should be handling max/min?
---
--- takes in offsets, max./min., step size
+-- we use 200kHz in simulation
+specPeriod :: PeriodPs
+specPeriod = hzToPeriod 200e3
+
+minTOffset, maxTOffset :: Ppm -> PeriodPs -> Integer
+minTOffset ppm period = toInteger (fastPeriod ppm period) - toInteger period
+maxTOffset ppm period = toInteger (slowPeriod ppm period - period)
 
 -- | Determines how to influence clock frequency given statistics provided by
 -- all elastic buffers.
@@ -166,17 +174,16 @@ clockControl ::
   (KnownNat n, KnownDomain dom, 1 <= n) =>
   -- | The size of the clock frequency should "jump" on a speed change request.
   StepSize ->
-  -- | Minimum offset
-  Integer ->
-  -- | Maximum offset
-  Integer ->
+  -- | Maximum divergence from initial frequency. Used to prevent frequency
+  -- runoff.
+  Ppm ->
   -- | Size of elastic buffers. Used to observe bounds and 'targetDataCount'.
   ElasticBufferSize ->
   -- | Statistics provided by elastic buffers.
   Vec n (Signal dom DataCount) ->
   -- | Whether to adjust node clock frequency
   Signal dom SpeedChange
-clockControl step mi ma elasticBufferSize ebs = res
+clockControl step ppm elasticBufferSize ebs = res
  where
   (_, res) = go 0 (bundle ebs) 0
 
@@ -198,3 +205,6 @@ clockControl step mi ma elasticBufferSize ebs = res
 
   go counter (_ :- dataCounts) offs =
     second (NoChange :-) (go (pred counter) dataCounts offs)
+
+  mi = minTOffset ppm specPeriod
+  ma = maxTOffset ppm specPeriod
