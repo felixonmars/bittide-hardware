@@ -53,6 +53,11 @@ instance ToField SpeedChange where
   toField SlowDown = "slowDown"
   toField NoChange = "noChange"
 
+-- | The clock tuner only updates at a frequency of 1MHz; our board operates at
+-- 200MHz, thus we only process one FINC/FDEC for every 200 clock cycles
+tunerRatio :: Natural
+tunerRatio = 200
+
 -- | Simple model of the Si5395/Si5391 clock multipliers. In real hardware, these
 -- are connected to some oscillator (i.e., incoming Clock) but for simulation purposes
 -- we pretend it generates the clock too. In the future we could make it accept a clock
@@ -92,7 +97,7 @@ clockTuner periodOffset stepSize _reset speedChange =
           clockSignal = initPeriod :- go 0 initPeriod speedChange in
       (clockSignal, DClock SSymbol (Just clockSignal))
  where
-  -- only process a speed change every 200 cycles
+  -- only process a speed change every 'tunerRatio' cycles
   go ::
     Natural ->
     StepSize ->
@@ -105,7 +110,7 @@ clockTuner periodOffset stepSize _reset speedChange =
         SlowDown -> period + stepSize
         NoChange -> period
     in
-      newPeriod :- go 200 newPeriod scs
+      newPeriod :- go tunerRatio newPeriod scs
 
   go counter period (_ :- scs) =
     period :- go (pred counter) period scs
@@ -193,7 +198,7 @@ clockControl step ppm elasticBufferSize ebs = res
  where
   (_, res) = go 0 (bundle ebs) 0
 
-  -- we only need to adjust offset every 200 cycles, because the clock tuner
+  -- we only need to adjust offset every 'tunerRatio' cycles, because the clock tuner
   -- only processes that often
   go ::
     Natural ->
@@ -201,7 +206,7 @@ clockControl step ppm elasticBufferSize ebs = res
     Integer ->
     (Integer, Signal dom SpeedChange)
   go 0 (currentSizes :- dataCounts) offs =
-    nextOffs `seq` second (speedChange :-) (go 200 dataCounts nextOffs)
+    nextOffs `seq` second (speedChange :-) (go tunerRatio dataCounts nextOffs)
    where
     (speedChange, nextOffs) =
       let
