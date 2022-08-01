@@ -30,3 +30,6 @@ fastPeriod ppm = hzToPeriod . fastHz ppm . periodToHz
 
 slowPeriod :: Ppm -> PeriodPs -> PeriodPs
 slowPeriod ppm = hzToPeriod . slowHz ppm . periodToHz
+
+slowFastPeriod :: Ppm -> PeriodPs -> (PeriodPs, PeriodPs)
+slowFastPeriod ppm ps = (slowPeriod ppm ps, fastPeriod ppm ps)

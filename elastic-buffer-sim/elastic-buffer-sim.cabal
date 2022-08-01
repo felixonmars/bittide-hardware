@@ -76,7 +76,7 @@ library
   exposed-modules:
     Bittide.Layout
     Bittide.Simulate
-    Arithmetic
+    Bittide.Simulate.Arithmetic
   default-language: Haskell2010
 
 executable sim
