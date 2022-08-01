@@ -170,7 +170,7 @@ elasticBuffer size clock0 (DClock ss Nothing) =
     SDomainConfiguration _ (snatToNum -> period) _ _ _ _ ->
       elasticBuffer size clock0 (DClock ss (Just (pure period)))
 
-minTOffset, maxTOffset :: Ppm -> PeriodPs -> Integer
+minTOffset, maxTOffset :: Ppm -> PeriodPs -> Offset
 minTOffset ppm period = toInteger (fastPeriod ppm period) - toInteger period
 maxTOffset ppm period = toInteger (slowPeriod ppm period - period)
 
@@ -204,8 +204,8 @@ clockControl step ppm elasticBufferSize ebs = res
   go ::
     Natural ->
     Signal dom (Vec n DataCount) ->
-    Integer ->
-    (Integer, Signal dom SpeedChange)
+    Offset ->
+    (Offset, Signal dom SpeedChange)
   go 0 (currentSizes :- dataCounts) offs =
     nextOffs `seq` second (speedChange :-) (go tunerRatio dataCounts nextOffs)
    where
