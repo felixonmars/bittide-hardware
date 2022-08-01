@@ -43,7 +43,7 @@ data SpeedChange
   = SpeedUp
   | SlowDown
   | NoChange
-  deriving (Eq,Show,Generic,NFDataX)
+  deriving (Eq, Show, Generic, NFDataX)
 
 instance ToField SpeedChange where
   toField SpeedUp = "speedUp"
