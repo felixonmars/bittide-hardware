@@ -5,4 +5,4 @@ import Bittide.Layout
 import System.Environment (getArgs)
 
 main :: IO ()
-main = dumpCsv . read . head =<< getArgs
+main = dumpCsv2' . read . head =<< getArgs
