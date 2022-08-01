@@ -31,7 +31,7 @@ dumpCsv n = do
   writeFile "clocks1.csv" "t,clk1,eb10,eb12\n"
   writeFile "clocks2.csv" "t,clk2,eb20,eb21\n"
   let (dat0, dat1, dat2) =
-          on3 (encode . P.take n . timeClock . bundle)
+          on3 (encode . P.take n . timeClock)
         $ threeNodes @Bittide @Bittide @Bittide o1 o2 o3
   BSL.appendFile "clocks0.csv" dat0
   BSL.appendFile "clocks1.csv" dat1
@@ -61,15 +61,13 @@ twoNodes ::
   ) =>
   Offset ->
   Offset ->
-  ( Signal dom1 PeriodPs
-  , Signal dom1 DataCount
-  , Signal dom1 SpeedChange
-  , Signal dom2 PeriodPs
-  , Signal dom2 DataCount
-  , Signal dom2 SpeedChange
+  ( Signal dom1 (PeriodPs, DataCount, SpeedChange)
+  , Signal dom2 (PeriodPs, DataCount, SpeedChange)
   )
 twoNodes offs0 offs1 =
-  (clk0Signal, eb01, clockControl0, clk1Signal, eb10, clockControl1)
+  ( bundle (clk0Signal, eb01, clockControl0)
+  , bundle (clk1Signal, eb10, clockControl1)
+  )
  where
 
   (clk0Signal, clock0) = clockTuner offs0 step resetGen clockControl0
@@ -92,36 +90,14 @@ threeNodes ::
   Offset ->
   Offset ->
   Offset ->
-  (
-    ( Signal dom1 PeriodPs
-    , Signal dom1 DataCount
-    , Signal dom1 DataCount
-    )
-  , ( Signal dom2 PeriodPs
-    , Signal dom2 DataCount
-    , Signal dom2 DataCount
-    )
-  , ( Signal dom3 PeriodPs
-    , Signal dom3 DataCount
-    , Signal dom3 DataCount
-    )
+  ( Signal dom1 (PeriodPs, DataCount, DataCount)
+  , Signal dom2 (PeriodPs, DataCount, DataCount)
+  , Signal dom3 (PeriodPs, DataCount, DataCount)
   )
 threeNodes offs0 offs1 offs2 =
-  (
-    ( clk0Signal
-    , eb01
-    , eb02
-    )
-  ,
-    ( clk1Signal
-    , eb10
-    , eb12
-    )
-  ,
-    ( clk2Signal
-    , eb20
-    , eb21
-    )
+  ( bundle (clk0Signal, eb01, eb02)
+  , bundle (clk1Signal, eb10, eb12)
+  , bundle (clk2Signal, eb20, eb21)
   )
  where
 
