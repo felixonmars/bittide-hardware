@@ -156,10 +156,6 @@ elasticBuffer size clock0 (DClock ss Nothing) =
     SDomainConfiguration _ (snatToNum -> period) _ _ _ _ ->
       elasticBuffer size clock0 (DClock ss (Just (pure period)))
 
--- we use 200kHz in simulation
-specPeriod :: PeriodPs
-specPeriod = hzToPeriod 200e3
-
 minTOffset, maxTOffset :: Ppm -> PeriodPs -> Integer
 minTOffset ppm period = toInteger (fastPeriod ppm period) - toInteger period
 maxTOffset ppm period = toInteger (slowPeriod ppm period - period)
@@ -208,5 +204,7 @@ clockControl step ppm elasticBufferSize ebs = res
   go counter (_ :- dataCounts) offs =
     second (NoChange :-) (go (pred counter) dataCounts offs)
 
-  mi = minTOffset ppm specPeriod
-  ma = maxTOffset ppm specPeriod
+  mi = minTOffset ppm domT
+  ma = maxTOffset ppm domT
+
+  domT = snatToNum @PeriodPs (clockPeriod @dom)

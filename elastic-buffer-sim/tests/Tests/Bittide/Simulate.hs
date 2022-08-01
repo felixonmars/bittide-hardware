@@ -10,8 +10,8 @@ import Test.Tasty.HUnit
 
 import Bittide.Simulate
 
-createDomain vXilinxSystem{vPeriod=11, vName="Fast"}
-createDomain vXilinxSystem{vPeriod=13, vName="Slow"}
+createDomain vXilinxSystem{vPeriod=hzToPeriod 200e3, vName="Fast"}
+createDomain vXilinxSystem{vPeriod=hzToPeriod 20e3, vName="Slow"}
 
 tests :: TestTree
 tests = testGroup "Simulate"
@@ -27,13 +27,13 @@ tests = testGroup "Simulate"
 case_clockControlMaxBound :: Assertion
 case_clockControlMaxBound = do
   let (change:_) =
-        sampleN 1024 (clockControl @_ @Fast 1 (-1) 1 128 (pure 128 :> Nil))
+        sampleN 1024 (clockControl @_ @Fast 1 100 128 (pure 128 :> Nil))
   change @?= SpeedUp
 
 case_clockControlMinBound :: Assertion
 case_clockControlMinBound = do
   let (change:_) =
-        sampleN 1024 (clockControl @_ @Fast 1 (-1) 1 128 (pure 0 :> Nil))
+        sampleN 1024 (clockControl @_ @Fast 1 100 128 (pure 0 :> Nil))
   change @?= SlowDown
 
 -- | When the elasticBuffer is written to more quickly than it is being read from,

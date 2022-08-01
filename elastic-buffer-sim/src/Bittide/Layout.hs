@@ -44,7 +44,15 @@ genOffs =
   (`subtract` toInteger specPeriod)
     <$> randomRIO (toInteger minT, toInteger maxT)
  where
-  (maxT, minT) = slowFastPeriod 100 specPeriod
+  (maxT, minT) = slowFastPeriod specPpm specPeriod
+  specPpm = 100
+
+-- we use 200kHz in simulation
+specPeriod :: PeriodPs
+specPeriod = hzToPeriod 200e3
+
+maxPpm :: Ppm
+maxPpm = 150
 
 -- | Two bittide nodes connected to one another.
 twoNodes ::
@@ -66,11 +74,11 @@ twoNodes offs0 offs1 =
 
   (clk0Signal, clock0) = clockTuner offs0 step resetGen clockControl0
   eb01 = elasticBuffer ebSz clock0 clock1
-  clockControl0 = clockControl step 150 ebSz (eb01 :> Nil)
+  clockControl0 = clockControl step maxPpm ebSz (eb01 :> Nil)
 
   (clk1Signal, clock1) = clockTuner offs1 step resetGen clockControl1
   eb10 = elasticBuffer ebSz clock1 clock0
-  clockControl1 = clockControl step 150 ebSz (eb10 :> Nil)
+  clockControl1 = clockControl step maxPpm ebSz (eb10 :> Nil)
 
   ebSz = 128
   step = 1
@@ -120,17 +128,17 @@ threeNodes offs0 offs1 offs2 =
   (clk0Signal, clock0) = clockTuner offs0 step resetGen clockControl0
   eb01 = elasticBuffer ebSz clock0 clock1
   eb02 = elasticBuffer ebSz clock0 clock2
-  clockControl0 = clockControl step 150 ebSz (eb01 :> eb02 :> Nil)
+  clockControl0 = clockControl step maxPpm ebSz (eb01 :> eb02 :> Nil)
 
   (clk1Signal, clock1) = clockTuner offs1 step resetGen clockControl1
   eb10 = elasticBuffer ebSz clock1 clock0
   eb12 = elasticBuffer ebSz clock1 clock2
-  clockControl1 = clockControl step 150 ebSz (eb10 :> eb12 :> Nil)
+  clockControl1 = clockControl step maxPpm ebSz (eb10 :> eb12 :> Nil)
 
   (clk2Signal, clock2) = clockTuner offs2 step resetGen clockControl2
   eb20 = elasticBuffer ebSz clock2 clock0
   eb21 = elasticBuffer ebSz clock2 clock1
-  clockControl2 = clockControl step 150 ebSz (eb20 :> eb21 :> Nil)
+  clockControl2 = clockControl step maxPpm ebSz (eb20 :> eb21 :> Nil)
 
   ebSz = 128
   step = 1
