@@ -7,6 +7,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GADTs #-}
 
 module Bittide.Link where
 
@@ -18,6 +19,8 @@ import Bittide.DoubleBufferedRam
 import Data.Constraint
 import Data.Constraint.Nat.Extra
 import Data.Maybe
+import Bittide.ScatterGather
+import Bittide.Calendar
 
 -- Internal states of the txUnit.
 data TransmissionState preambleWidth seqCountWidth frameWidth
@@ -203,6 +206,64 @@ setLowerSlice ::
   BitVector bv ->
   BitVector bv
 setLowerSlice = setSlice @_ @_ @(bv - slice) (SNat @(slice -1)) d0
+
+data LinkConfig nBytes addrW where
+  LinkConfig ::
+    (KnownNat preambleWidth, 1 <= preambleWidth) =>
+    BitVector preambleWidth ->
+    ScatterConfig nBytes addrW ->
+    GatherConfig nBytes addrW ->
+    LinkConfig nBytes addrW
+
+linkToPe ::
+  forall dom scw nBytesMu addrWMu addrWPe .
+  ( HiddenClockResetEnable dom
+  , KnownNat nBytesMu, 1 <= nBytesMu
+  , KnownNat addrWMu, 2 <= addrWMu
+  , KnownNat addrWPe, 2 <= addrWPe
+  , KnownNat scw, 1 <= scw)=>
+  LinkConfig nBytesMu addrWMu ->
+  Signal dom (DataLink 64) ->
+  Signal dom (Unsigned scw) ->
+  Signal dom (WishboneM2S 4 addrWPe) ->
+  Vec 2 (Signal dom (WishboneM2S nBytesMu addrWMu)) ->
+  (Signal dom (WishboneS2M 4), Vec 2 (Signal dom (WishboneS2M nBytesMu)))
+linkToPe linkConfig linkIn localCounter peM2S linkM2S = case linkConfig of
+  LinkConfig preamble (ScatterConfig scatConfig) _ -> (peS2M, linkS2M)
+   where
+    linkS2M =  rxS2M :> calS2M :> Nil
+    (rxM2S :> calM2S :> Nil) = linkM2S
+    rxS2M = rxUnit preamble localCounter linkIn rxM2S
+    (peS2M,calS2M) = scatterUnitWb scatConfig calM2S linkIn peM2S
+
+peToLink ::
+  forall dom scw nBytesMu addrWMu addrWPe .
+  ( HiddenClockResetEnable dom
+  , KnownNat nBytesMu, 1 <= nBytesMu
+  , KnownNat addrWMu, 2 <= addrWMu
+  , KnownNat addrWPe, 2 <= addrWPe
+  , KnownNat scw, 1 <= scw)=>
+  LinkConfig nBytesMu addrWMu ->
+  Signal dom (Unsigned scw) ->
+  Signal dom (WishboneM2S 4 addrWPe) ->
+  Vec 2 (Signal dom (WishboneM2S nBytesMu addrWMu)) ->
+  (Signal dom (DataLink 64), Signal dom (WishboneS2M 4), Vec 2 (Signal dom (WishboneS2M nBytesMu)))
+peToLink linkConfig localCounter peM2S linkM2S = case linkConfig of
+  LinkConfig preamble _ (GatherConfig gathConfig) -> go preamble gathConfig
+ where
+  go ::
+    forall preambleWidth memDepth .
+    ( KnownNat preambleWidth, 1 <= preambleWidth
+    , KnownNat memDepth, 1 <= memDepth) =>
+    BitVector preambleWidth ->
+    CalendarConfig nBytesMu addrWMu (Index memDepth) ->
+    (Signal dom (DataLink 64), Signal dom (WishboneS2M 4), Vec 2 (Signal dom (WishboneS2M nBytesMu)))
+  go preamble calConfig = (linkOut, peS2M, linkS2M)
+   where
+    linkS2M =  txS2M :> calS2M :> Nil
+    (txM2S :> calM2S :> Nil) = linkM2S
+    (txS2M,linkOut) = txUnit preamble localCounter gatherOut txM2S
+    (gatherOut, peS2M,calS2M) = gatherUnitWb calConfig calM2S peM2S
 
 sequenceCounter :: HiddenClockResetEnable dom => Signal dom (Unsigned 64)
 sequenceCounter = register 0 $ satSucc SatError <$> sequenceCounter
