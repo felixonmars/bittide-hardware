@@ -213,10 +213,6 @@ defClockConfig = ClockControlConfig
   specPpm = 100
   pessimisticPeriod = speedUpPeriod specPpm specPeriod
 
--- we use 200kHz in simulation
-specPeriod :: PeriodPs
-specPeriod = hzToPeriod 200e3
-
 -- | Determines how to influence clock frequency given statistics provided by
 -- all elastic buffers.
 --
