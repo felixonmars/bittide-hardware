@@ -10,6 +10,29 @@ import Bittide.ProcessingElement
 import Bittide.Extra.Wishbone
 import Bittide.Link
 import Bittide.SharedTypes
+import Bittide.Calendar
+
+node ::
+  (HiddenClockResetEnable dom, KnownNat extLinks) =>
+  (CalendarConfig 4 32 (Vec (extLinks + 3) (Index (extLinks + 4))),
+    LinkConfig 4 32, PeConfig 17, LinkConfig 4 32, PeConfig 4,
+    LinkConfig 4 32, PeConfig 4)
+  -> Vec extLinks (Signal dom (DataLink 64))
+  -> Vec extLinks (Signal dom (DataLink 64))
+node nodeConfig linksIn = linksOut
+ where
+  (unbundle -> switchOut, swS2M) = switch switchConfig swM2S switchIn
+  switchIn = bundle (nmuToSwitch :> peAToSwitch :> peBToSwitch :> linksIn)
+  (switchToNmu :> switchToPeA :> switchToPeB :> linksOut) = switchOut
+  (nmuToSwitch, swM2S :> nmuM2Ss) = managementUnit nmuLinkConfig nmuConfig switchToNmu nmuS2Ms
+  (peAM2Ss, peBM2Ss) = splitAtI nmuM2Ss
+  nmuS2Ms = (swS2M :> peAS2Ms) ++ peBS2Ms
+
+  (peAToSwitch, peAS2Ms) = gppe peALinkConfig peAConfig switchToPeA peAM2Ss
+  (peBToSwitch, peBS2Ms) = gppe peBLinkConfig peBConfig switchToPeB peBM2Ss
+
+  (switchConfig, nmuLinkConfig, nmuConfig, peALinkConfig, peAConfig, peBLinkConfig, peBConfig)
+   = nodeConfig
 
 -- | Configuration for the management unit and its link.
 -- The management unit contains the 4 wishbone busses that each pe has
