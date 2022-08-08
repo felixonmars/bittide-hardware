@@ -1,6 +1,7 @@
 -- SPDX-FileCopyrightText: 2022 Google LLC
 --
 -- SPDX-License-Identifier: Apache-2.0
+{-# OPTIONS_GHC -fconstraint-solver-iterations=5 #-}
 {-# LANGUAGE GADTs #-}
 
 module Bittide.Node where
@@ -10,29 +11,46 @@ import Bittide.ProcessingElement
 import Bittide.Extra.Wishbone
 import Bittide.Link
 import Bittide.SharedTypes
-import Bittide.Calendar
+import Bittide.Switch
+
+-- | Each 'gppe' results in 6 busses for the 'managementUnit', namely:
+-- * The 'calendar' for the 'scatterUnitWB'.
+-- * The 'calendar' for the 'gatherUnitWB'.
+-- * The interface of the 'rxUnit' on the 'gppe' side.
+-- * The interface of the 'txUnit' on the 'gppe' side.
+type BussesPerGppe = 4
+
+-- | Each 'switch' link results in 2 busses for the 'managementUnit', namely:
+-- * The interface of the 'rxUnit' on the 'switch' side.
+-- * The interface of the 'txUnit' on the 'switch' side.
+type BussesPerSwitchLink = 2
+
+data NodeConfig externalLinks gppes where
+  NodeConfig ::
+    ManagementConfig ((BussesPerGppe * gppes) + (BussesPerSwitchLink * (externalLinks + (gppes + 1))) + 1) ->
+    SwitchConfig (externalLinks + gppes + 1) 4 32 ->
+    Vec gppes GppeConfig ->
+    NodeConfig externalLinks gppes
 
 node ::
-  (HiddenClockResetEnable dom, KnownNat extLinks) =>
-  (CalendarConfig 4 32 (Vec (extLinks + 3) (Index (extLinks + 4))),
-    LinkConfig 4 32, PeConfig 17, LinkConfig 4 32, PeConfig 4,
-    LinkConfig 4 32, PeConfig 4)
-  -> Vec extLinks (Signal dom (DataLink 64))
-  -> Vec extLinks (Signal dom (DataLink 64))
+  (HiddenClockResetEnable dom, KnownNat extLinks, KnownNat gppes) =>
+  NodeConfig extLinks gppes ->
+  Vec extLinks (Signal dom (DataLink 64)) ->
+  Vec extLinks (Signal dom (DataLink 64))
 node nodeConfig linksIn = linksOut
  where
-  (unbundle -> switchOut, swS2M) = switch switchConfig swM2S switchIn
-  switchIn = bundle (nmuToSwitch :> peAToSwitch :> peBToSwitch :> linksIn)
-  (switchToNmu :> switchToPeA :> switchToPeB :> linksOut) = switchOut
-  (nmuToSwitch, swM2S :> nmuM2Ss) = managementUnit nmuLinkConfig nmuConfig switchToNmu nmuS2Ms
-  (peAM2Ss, peBM2Ss) = splitAtI nmuM2Ss
-  nmuS2Ms = (swS2M :> peAS2Ms) ++ peBS2Ms
+  (switchOut, swS2Ms) = mkswitch switchConfig swM2Ss switchIn
 
-  (peAToSwitch, peAS2Ms) = gppe peALinkConfig peAConfig switchToPeA peAM2Ss
-  (peBToSwitch, peBS2Ms) = gppe peBLinkConfig peBConfig switchToPeB peBM2Ss
+  switchIn = nmuToSwitch :> (pesToSwitch ++ linksIn)
+  (nmuToSwitch, (splitAtI -> (swM2Ss, peM2Ss))) = managementUnit nmuConfig swToNmu nmuS2Ms
+  (swToNmu :> rest) = switchOut
+  (switchToPes, linksOut) = splitAtI rest
 
-  (switchConfig, nmuLinkConfig, nmuConfig, peALinkConfig, peAConfig, peBLinkConfig, peBConfig)
-   = nodeConfig
+  nmuS2Ms = swS2Ms ++ peS2Ms
+
+  (pesToSwitch, concat -> peS2Ms) = unzip $ gppe <$> zip3 gppeConfigs switchToPes (unconcatI peM2Ss)
+
+  (NodeConfig nmuConfig switchConfig gppeConfigs) = nodeConfig
 
 -- | Configuration for the management unit and its link.
 -- The management unit contains the 4 wishbone busses that each pe has
