@@ -203,3 +203,6 @@ setLowerSlice ::
   BitVector bv ->
   BitVector bv
 setLowerSlice = setSlice @_ @_ @(bv - slice) (SNat @(slice -1)) d0
+
+sequenceCounter :: HiddenClockResetEnable dom => Signal dom (Unsigned 64)
+sequenceCounter = register 0 $ satSucc SatError <$> sequenceCounter
