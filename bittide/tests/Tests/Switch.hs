@@ -36,13 +36,13 @@ switchGroup :: TestTree
 switchGroup = testGroup "Switch group"
   [testPropertyNamed "Routing works" "switchFrameRoutingWorks" switchFrameRoutingWorks]
 
-data SwitchConfig  nBytes addrW where
-  SwitchConfig ::
+data SwitchTestConfig  nBytes addrW where
+  SwitchTestConfig ::
     SNat links ->
     CalendarConfig nBytes addrW (CalendarEntry links) ->
-    SwitchConfig nBytes addrW
+    SwitchTestConfig nBytes addrW
 
-deriving instance Show (SwitchConfig nBytes addrW)
+deriving instance Show (SwitchTestConfig nBytes addrW)
 
 -- This generator can generate a calendar entry for a switch given the amount of links.
 genSwitchEntry ::
@@ -59,12 +59,12 @@ genSwitchCalendar ::
   (KnownNat nBytes, 1 <= nBytes, KnownNat addrW) =>
   Natural ->
   Natural ->
-  Gen (SwitchConfig nBytes addrW)
+  Gen (SwitchTestConfig nBytes addrW)
 genSwitchCalendar links calDepth = do
   case TN.someNatVal links of
     (SomeNat (snatProxy -> l)) -> do
       testCal <- genCalendarConfig calDepth $ genSwitchEntry l
-      return $ SwitchConfig l testCal
+      return $ SwitchTestConfig l testCal
 
 -- | This test checks that for any switch calendar all outputs select the correct frame.
 switchFrameRoutingWorks :: Property
@@ -73,7 +73,7 @@ switchFrameRoutingWorks = property $ do
   calDepth <- forAll $ Gen.enum 1 8
   switchCal <- forAll $ genSwitchCalendar @4 @32 (fromIntegral links) calDepth
   case switchCal of
-    SwitchConfig (SNat :: SNat links) calConfig@(CalendarConfig _ (toList -> cal) _) -> do
+    SwitchTestConfig (SNat :: SNat links) calConfig@(CalendarConfig _ (toList -> cal) _) -> do
       simLength <- forAll $ Gen.enum 1 (3 * fromIntegral calDepth)
       preamble <- forAll (genDefinedBitVector @1)
       let
