@@ -26,6 +26,8 @@ data SwitchConfig links nBytes addrW where
     CalendarConfig nBytes addrW (CalendarEntry links) ->
     SwitchConfig links nBytes addrW
 
+deriving instance Show (SwitchConfig links nBytes addrW)
+
 -- | Creates a 'switch' from a 'SwitchConfig'.
 mkswitch ::
   ( HiddenClockResetEnable dom

@@ -38,8 +38,8 @@ switchGroup = testGroup "Switch group"
 
 data SwitchTestConfig  nBytes addrW where
   SwitchTestConfig ::
-    SNat links ->
-    CalendarConfig nBytes addrW (CalendarEntry links) ->
+    (KnownNat links) =>
+    SwitchConfig links nBytes addrW ->
     SwitchTestConfig nBytes addrW
 
 deriving instance Show (SwitchTestConfig nBytes addrW)
@@ -64,7 +64,9 @@ genSwitchCalendar links calDepth = do
   case TN.someNatVal links of
     (SomeNat (snatProxy -> l)) -> do
       testCal <- genCalendarConfig calDepth $ genSwitchEntry l
-      return $ SwitchTestConfig l testCal
+      preamble <- genDefinedBitVector @1
+      let
+      return $ SwitchTestConfig (SwitchConfig preamble testCal)
 
 -- | This test checks that for any switch calendar all outputs select the correct frame.
 switchFrameRoutingWorks :: Property
@@ -73,9 +75,8 @@ switchFrameRoutingWorks = property $ do
   calDepth <- forAll $ Gen.enum 1 8
   switchCal <- forAll $ genSwitchCalendar @4 @32 (fromIntegral links) calDepth
   case switchCal of
-    SwitchTestConfig (SNat :: SNat links) calConfig@(CalendarConfig _ (toList -> cal) _) -> do
+    SwitchTestConfig (SwitchConfig preamble calConfig@(CalendarConfig _ (toList -> cal) _)) -> do
       simLength <- forAll $ Gen.enum 1 (3 * fromIntegral calDepth)
-      preamble <- forAll (genDefinedBitVector @1)
       let
         genFrame = Just <$> genDefinedBitVector @64
         allLinks = Gen.list (Range.singleton links) genFrame
