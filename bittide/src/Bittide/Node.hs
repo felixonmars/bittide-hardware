@@ -17,6 +17,23 @@ import Bittide.ScatterGather
 import Bittide.Calendar
 import Bittide.DoubleBufferedRam
 
+simpleNodeConfig :: NodeConfig 1 2
+simpleNodeConfig =
+  NodeConfig
+  (ManagementConfig linkConfig nmuConfig)
+  switchConfig
+  (repeat (GppeConfig linkConfig peConfig))
+ where
+  switchConfig = SwitchConfig preamble switchCal
+  switchCal = CalendarConfig (SNat @1024) (repeat @1 $ repeat 0) (repeat @1 $ repeat 0)
+  linkConfig = LinkConfig preamble (ScatterConfig sgConfig) (GatherConfig sgConfig)
+  sgConfig = CalendarConfig (SNat @1024) (repeat @1 (0 :: Index 1024)) (repeat @1 0)
+  peConfig = PeConfig memMapPe (SNat @8192) (SNat @8192) (Undefined @1) (Undefined @1) 0
+  nmuConfig = PeConfig memMapNmu (SNat @8192) (SNat @8192) (Undefined @1) (Undefined @1) 0
+  memMapPe = fmap (+32768) (iterateI succ 0)
+  memMapNmu = fmap (+32768) (iterateI succ 0)
+  preamble = 0x1234567890 :: BitVector 80
+
 -- | Each 'gppe' results in 6 busses for the 'managementUnit', namely:
 -- * The 'calendar' for the 'scatterUnitWB'.
 -- * The 'calendar' for the 'gatherUnitWB'.
