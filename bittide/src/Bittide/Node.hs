@@ -1,6 +1,7 @@
 -- SPDX-FileCopyrightText: 2022 Google LLC
 --
 -- SPDX-License-Identifier: Apache-2.0
+
 {-# OPTIONS_GHC -fconstraint-solver-iterations=5 #-}
 {-# LANGUAGE GADTs #-}
 
@@ -12,6 +13,9 @@ import Bittide.Extra.Wishbone
 import Bittide.Link
 import Bittide.SharedTypes
 import Bittide.Switch
+import Bittide.ScatterGather
+import Bittide.Calendar
+import Bittide.DoubleBufferedRam
 
 -- | Each 'gppe' results in 6 busses for the 'managementUnit', namely:
 -- * The 'calendar' for the 'scatterUnitWB'.
@@ -27,30 +31,30 @@ type BussesPerSwitchLink = 2
 
 data NodeConfig externalLinks gppes where
   NodeConfig ::
-    ManagementConfig ((BussesPerGppe * gppes) + (BussesPerSwitchLink * (externalLinks + (gppes + 1))) + 1) ->
+    (KnownNat switchBusses, switchBusses ~ (1 + BussesPerSwitchLink * (externalLinks + (gppes + 1))))=>
+    ManagementConfig ((BussesPerGppe * gppes) + switchBusses) ->
     SwitchConfig (externalLinks + gppes + 1) 4 32 ->
     Vec gppes GppeConfig ->
     NodeConfig externalLinks gppes
 
 node ::
+  forall dom extLinks gppes .
   (HiddenClockResetEnable dom, KnownNat extLinks, KnownNat gppes) =>
   NodeConfig extLinks gppes ->
   Vec extLinks (Signal dom (DataLink 64)) ->
   Vec extLinks (Signal dom (DataLink 64))
-node nodeConfig linksIn = linksOut
+node (NodeConfig nmuConfig switchConfig gppeConfigs) linksIn = linksOut
  where
   (switchOut, swS2Ms) = mkswitch switchConfig swM2Ss switchIn
 
   switchIn = nmuToSwitch :> (pesToSwitch ++ linksIn)
-  (nmuToSwitch, (splitAtI -> (swM2Ss, peM2Ss))) = managementUnit nmuConfig swToNmu nmuS2Ms
+  (nmuToSwitch, splitAtI -> (swM2Ss, peM2Ss)) = managementUnit nmuConfig swToNmu nmuS2Ms
   (swToNmu :> rest) = switchOut
   (switchToPes, linksOut) = splitAtI rest
 
   nmuS2Ms = swS2Ms ++ peS2Ms
 
   (pesToSwitch, concat -> peS2Ms) = unzip $ gppe <$> zip3 gppeConfigs switchToPes (unconcatI peM2Ss)
-
-  (NodeConfig nmuConfig switchConfig gppeConfigs) = nodeConfig
 
 -- | Configuration for the management unit and its link.
 -- The management unit contains the 4 wishbone busses that each pe has
