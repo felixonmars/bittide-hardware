@@ -7,17 +7,27 @@
 
 module Bittide.Node where
 
-import Clash.Prelude
-import Bittide.ProcessingElement
-import Bittide.Extra.Wishbone
-import Bittide.Link
-import Bittide.SharedTypes
-import Bittide.Switch
-import Bittide.ScatterGather
 import Bittide.Calendar
 import Bittide.DoubleBufferedRam
+import Bittide.Extra.Wishbone
+import Bittide.Link
+import Bittide.ProcessingElement
+import Bittide.ScatterGather
+import Bittide.SharedTypes
+import Bittide.Switch
+import Clash.Prelude
 
-simpleNodeConfig :: NodeConfig 1 2
+createDomain vXilinxSystem{vName = "Xilinx100", vPeriod = hzToPeriod 200e6}
+
+topEntity ::
+  Clock Xilinx100
+  -> Reset Xilinx100
+  -> Enable Xilinx100
+  -> Vec 1 (Signal Xilinx100 (DataLink 64))
+  -> Vec 1 (Signal Xilinx100 (DataLink 64))
+topEntity clk rst en = withClockResetEnable clk rst en (node simpleNodeConfig)
+
+simpleNodeConfig :: NodeConfig 1 8
 simpleNodeConfig =
   NodeConfig
   (ManagementConfig linkConfig nmuConfig)
@@ -48,7 +58,8 @@ type BussesPerSwitchLink = 2
 
 data NodeConfig externalLinks gppes where
   NodeConfig ::
-    (KnownNat switchBusses, switchBusses ~ (1 + BussesPerSwitchLink * (externalLinks + (gppes + 1))))=>
+    ( KnownNat switchBusses
+    , switchBusses ~ (1 + BussesPerSwitchLink * (externalLinks + (gppes + 1))))=>
     ManagementConfig ((BussesPerGppe * gppes) + switchBusses) ->
     SwitchConfig (externalLinks + gppes + 1) 4 32 ->
     Vec gppes GppeConfig ->

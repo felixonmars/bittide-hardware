@@ -167,9 +167,9 @@ calendar SNat bootstrapActive bootstrapShadow wbIn =
   bootstrapB = bootstrapShadow ++ deepErrorX
    @(Vec (maxCalDepth - bootstrapSizeB) calEntry) "Uninitialized active entry"
 
-  bufA = blockRam bootstrapA (readA <$> bufCtrl) (writeA <$> bufCtrl)
-  bufB = blockRam bootstrapB (readB <$> bufCtrl) (writeB <$> bufCtrl)
-
+  bufA = blockRamU NoClearOnReset (SNat @maxCalDepth) rstFunc (readA <$> bufCtrl) (writeA <$> bufCtrl)
+  bufB = blockRamU NoClearOnReset (SNat @maxCalDepth) rstFunc (readB <$> bufCtrl) (writeB <$> bufCtrl)
+  rstFunc = const (errorX "")
   (bufCtrl, calOut) = mealyB go initState (ctrl, bufA, bufB)
 
   -- We can safely derive the initial calDepths from the bootStrapsizes because
