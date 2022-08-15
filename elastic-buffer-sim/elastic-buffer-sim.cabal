@@ -81,6 +81,7 @@ library
     bytestring,
     cassava,
     containers,
+    matplotlib,
     random,
     template-haskell
   exposed-modules:

@@ -47,10 +47,6 @@ genOffs =
   (maxT, minT) = slowFastPeriod specPpm specPeriod
   specPpm = 100
 
--- we use 200kHz in simulation
-specPeriod :: PeriodPs
-specPeriod = hzToPeriod 200e3
-
 maxPpm :: Ppm
 maxPpm = 150
 

@@ -4,7 +4,7 @@
 
 -- | This module contains template haskell functions which lay out circuits
 -- using parts from "Bittide.Simulate"
-module Bittide.Topology.TH ( cross, onTup, simNodesFromGraph, timeN ) where
+module Bittide.Topology.TH ( cross, onTup, timeN, simNodesFromGraph, extrClocks ) where
 
 import Prelude
 
@@ -82,6 +82,16 @@ extrPeriods _ =
   let
     Clash.SDomainConfiguration _ (Clash.snatToNum -> period) _ _ _ _  = Clash.knownDomain @dom
   in pure period
+
+-- | Example: @extrClocks 2@ will give a function of type
+--
+-- @(Ps, PeriodPs, DataCount, DataCount) -> ((Ps, PeriodPs), [(Ps, DataCount)])@
+extrClocks :: Int -> Q Exp
+extrClocks i = do
+  x <- newName "x"
+  y <- newName "y"
+  zs <- traverse newName (replicate i "z")
+  pure $ LamE [TupP (VarP <$> x:y:zs)] (tup [tup [VarE x, VarE y], ListE (fmap (\z -> tup [VarE x, VarE z]) zs)])
 
 -- | Given a graph with \(n\) nodes, generate a function which takes a list of \(n\)
 -- offsets (divergence from spec) and returns a tuple of signals for each clock domain
