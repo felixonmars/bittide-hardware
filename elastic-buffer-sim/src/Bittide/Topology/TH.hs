@@ -4,12 +4,14 @@
 
 -- | This module contains template haskell functions which lay out circuits
 -- using parts from "Bittide.Simulate"
-module Bittide.Topology.TH ( cross, onTup, timeN, simNodesFromGraph, extrClocks ) where
+module Bittide.Topology.TH ( cross, timeN, onTup, simNodesFromGraph, asPlotN ) where
 
 import Prelude
+import Data.List qualified as L
 
 import Data.Array qualified as A
 import Data.Graph (Graph)
+import Graphics.Matplotlib ((%), mp, plot)
 import Language.Haskell.TH (Q, Body (..), Clause (..), Exp (..), Pat (..), Dec (..), Lit (..), Type (..), newName)
 import Language.Haskell.TH.Syntax (lift)
 import Numeric.Natural (Natural)
@@ -91,7 +93,28 @@ extrClocks i = do
   x <- newName "x"
   y <- newName "y"
   zs <- traverse newName (replicate i "z")
-  pure $ LamE [TupP (VarP <$> x:y:zs)] (tup [tup [VarE x, VarE y], ListE (fmap (\z -> tup [VarE x, VarE z]) zs)])
+  pure $
+    LamE
+      [TupP (VarP <$> x:y:zs)]
+      (tup [tup [VarE x, VarE y], ListE (fmap (\z -> tup [VarE x, VarE z]) zs)])
+
+-- | Example: @extrClocks 2@ will give a function of type
+--
+-- @[(Ps, PeriodPs, DataCount, DataCount)] -> Matplotlib@
+--
+-- The result (of type 'Matplotlib') will be period vs. time
+-- FIXME: this discards elastic buffer occupancy data
+asPlotN :: Int -> Q Exp
+asPlotN i = do
+  g <- extrClocks i
+  pure $
+              AppE (VarE 'uncurry) (VarE 'plot)
+    `compose` VarE 'unzip
+    `compose` mapQ (VarE 'fst `compose` g)
+ where
+  foldPlots = AppE (AppE (VarE 'L.foldl') (VarE '(%))) (VarE 'mp)
+  mapQ = AppE (VarE 'fmap)
+  compose e0 = AppE (AppE (VarE '(.)) e0)
 
 -- | Given a graph with \(n\) nodes, generate a function which takes a list of \(n\)
 -- offsets (divergence from spec) and returns a tuple of signals for each clock domain

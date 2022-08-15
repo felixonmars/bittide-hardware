@@ -20,16 +20,13 @@ import Data.List qualified as L
 import Data.Array qualified as A
 import Data.ByteString.Lazy qualified as BSL
 import Data.Csv
-import Graphics.Matplotlib (Matplotlib, (%), mp, plot, file, xlabel, ylabel)
+import Graphics.Matplotlib ((%), mp, plot, file, xlabel, ylabel)
 import System.Random (randomRIO)
 
 import Bittide.Simulate
 import Bittide.Simulate.Ppm
 import Bittide.Topology.Graph
 import Bittide.Topology.TH
-
-plotDat :: [(Ps, PeriodPs, DataCount, DataCount, DataCount, DataCount, DataCount)] -> Matplotlib
-plotDat = uncurry plot . P.unzip . fmap (fst . $(extrClocks 5))
 
 -- | This samples @n@ steps and plots clock speeds, saved in @clock.pdf@.
 plotEbs :: Int -> IO ()
@@ -39,11 +36,13 @@ plotEbs m = do
           onN (plotDat . P.take m)
         $ $(simNodesFromGraph (kn 6)) offs
       -- TODO: auto-ebs
-  void $ file "clocks.pdf" (xlabel "Time (ps)" % L.foldl' (%) mp dats)
+  void $ file "clocks.pdf" (xlabel "Time (ps)" % ylabel "Period (ps)" % L.foldl' (%) mp dats)
  where
   onN = $(onTup 6)
   (0, n) = A.bounds g
   g = kn 6
+  plotDat = $(asPlotN 5)
+  -- TODO: extrClocks ... n depends on node degree...
 
 -- | This samples @n@ steps and writes results in @.csv@ files.
 dumpCsv :: Int -> IO ()
