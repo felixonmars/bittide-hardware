@@ -31,12 +31,17 @@ cross xs ys = (,) <$> xs <*> ys
 
 -- | For @n=3@:
 --
--- > on3 f (x, y, z) = [f x, f y, f z]
+-- > on3 [f, g, h] (x, y, z) = [f x, g y, h z]
 onTup :: Int -> Q Exp
 onTup n = do
-  f <- newName "f"
+  fs <- newName "fs"
   x_is <- traverse (\i -> newName ("x" ++ show i)) [1..n]
-  pure $ LamE [VarP f, TupP (VarP <$> x_is)] (ListE [VarE f `AppE` VarE x | x <- x_is ])
+  pure $
+    LamE
+      [VarP fs, TupP (VarP <$> x_is)]
+      (zipWithQ (VarE '($)) (VarE fs) (ListE (VarE <$> x_is)))
+ where
+  zipWithQ f xs = AppE (AppE (AppE (VarE 'zipWith) f) xs)
 
 -- | Given a @Signal dom (PeriodPs, a_1, ...)@, make a @[(Ps, PeriodPs, a_1, ...)]@.
 --

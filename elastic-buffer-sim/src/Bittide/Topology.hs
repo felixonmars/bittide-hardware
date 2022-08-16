@@ -33,7 +33,7 @@ plotEbs :: Int -> IO ()
 plotEbs m = do
   offs <- replicateM (n+1) genOffs
   let dats =
-          onN (plotDat . P.take m)
+          onN (P.repeat (plotDat . P.take m))
         $ $(simNodesFromGraph (kn 6)) offs
       -- TODO: auto-ebs
   void $ file "clocks.pdf" (xlabel "Time (ps)" % ylabel "Period (ps)" % L.foldl' (%) mp dats)
@@ -59,7 +59,7 @@ dumpCsv m = do
   zipWithM_ (\dat i ->
     BSL.appendFile ("clocks" <> show i <> ".csv") dat) dats [(0::Int)..]
  where
-  onN = $(onTup 6)
+  onN f = $(onTup 6) (P.repeat f)
   (0, n) = A.bounds g
   g = complete 6
 
