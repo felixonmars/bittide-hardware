@@ -158,4 +158,4 @@ simNodesFromGraph ccc g = do
 
   ebSz = LitE (IntegerL 128)
   step = LitE (IntegerL 1)
-  settlePeriod = LitE (IntegerL (toInteger (cccPessimisticPeriod ccc * 200)))
+  settlePeriod = LitE (IntegerL (toInteger (cccSettlePeriod ccc)))
