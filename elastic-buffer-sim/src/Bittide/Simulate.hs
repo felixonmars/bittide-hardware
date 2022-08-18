@@ -17,11 +17,13 @@ TODO:
 
 module Bittide.Simulate where
 
-import Clash.Prelude
+import Clash.Explicit.Prelude
 import Clash.Signal.Internal
 import Data.Bifunctor (second)
 import GHC.Stack
 import Numeric.Natural
+
+import Clash.Cores.Xilinx.DcFifo hiding (DataCount)
 
 import Bittide.Simulate.Ppm
 
@@ -119,8 +121,7 @@ data OverflowMode
   -- practise. Overflowing elastic buffer cannot happen in a real Bittide system.
   | Error
 
--- | Simple model of a FIFO that only models the interesting part for conversion:
--- data counts.
+-- | Wrapper for FIFO which waits til it is half-full.
 elasticBuffer ::
   forall readDom writeDom.
   (HasCallStack, KnownDomain readDom, KnownDomain writeDom) =>
@@ -132,45 +133,20 @@ elasticBuffer ::
   Clock readDom ->
   Clock writeDom ->
   Signal readDom DataCount
-elasticBuffer mode size clkRead clkWrite
-  | Clock _ (Just readPeriods) <- clkRead
-  , Clock _ (Just writePeriods) <- clkWrite
-  = go 0 (targetDataCount size) readPeriods writePeriods
+elasticBuffer mode size clkRead clkWrite =
+  let
+    (FifoOut _ _ wc _ _ rd _) =
+      dcFifo (defConfig @7) clkWrite clkRead rst (pure (Just ())) rdSignal
+    rdSignal = mealy clkRead rst enableGen go False rd
+  in fromIntegral <$> rd
  where
-  go !relativeTime !fillLevel rps wps@(writePeriod :- _) =
-    if relativeTime < toInteger writePeriod
-    then goRead relativeTime fillLevel rps wps
-    else goWrite relativeTime fillLevel rps wps
-
-  goWrite relativeTime fillLevel rps (writePeriod :- wps) =
-    go (relativeTime - toInteger writePeriod) newFillLevel rps wps
-   where
-    newFillLevel
-      | fillLevel >= size = case mode of
-          Saturate -> fillLevel
-          Error -> error "elasticBuffer: overflow"
-      | otherwise = fillLevel + 1
-
-  goRead relativeTime fillLevel (readPeriod :- rps) wps =
-    newFillLevel :- go (relativeTime + toInteger readPeriod) newFillLevel rps wps
-   where
-    newFillLevel
-      | fillLevel <= 0 = case mode of
-          Saturate -> 0
-          Error -> error "elasticBuffer: underflow"
-      | otherwise = fillLevel - 1
-
-elasticBuffer mode size (Clock ss Nothing) clock1 =
-  -- Convert read clock to a "dynamic" clock if it isn't one
-  case knownDomain @readDom of
-    SDomainConfiguration _ (snatToNum -> period) _ _ _ _ ->
-      elasticBuffer mode size (Clock ss (Just (pure period))) clock1
-
-elasticBuffer mode size clock0 (Clock ss Nothing) =
-  -- Convert write clock to a "dynamic" clock if it isn't one
-  case knownDomain @writeDom of
-    SDomainConfiguration _ (snatToNum -> period) _ _ _ _ ->
-      elasticBuffer mode size clock0 (Clock ss (Just (pure period)))
+  rst = resetGen
+  targetDataCount = 64
+  go isInitialized c =
+    if isInitialized
+      then (True, True)
+      else let doneInit = c > targetDataCount in (doneInit, doneInit)
+  -- TODO: "drive" aka wait til stable...?
 
 -- | Configuration passed to 'clockControl'
 data ClockControlConfig = ClockControlConfig
