@@ -22,7 +22,6 @@ import Clash.Signal.Internal
 import Data.Bifunctor (second)
 import GHC.Stack
 import Numeric.Natural
-import Data.Bifunctor (second)
 
 import Bittide.Simulate.Ppm
 
