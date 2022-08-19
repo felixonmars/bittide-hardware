@@ -13,14 +13,13 @@ module Bittide.Topology ( dumpCsv, plotEbs ) where
 import Clash.Explicit.Prelude
 import Control.Monad (replicateM, forM_, zipWithM_)
 import Data.Functor (void)
-import Numeric.Natural
 import Prelude qualified as P
 import Data.List qualified as L
 
 import Data.Array qualified as A
 import Data.ByteString.Lazy qualified as BSL
 import Data.Csv
-import Graphics.Matplotlib ((%), mp, plot, file, xlabel, ylabel)
+import Graphics.Matplotlib ((%), mp, file, xlabel, ylabel)
 import System.Random (randomRIO)
 
 import Bittide.Simulate
@@ -31,16 +30,16 @@ import Bittide.Topology.TH
 -- | This samples @n@ steps and plots clock speeds, saved in @clock.pdf@.
 plotEbs :: Int -> IO ()
 plotEbs m = do
-  offs <- replicateM (n+1) genOffs
+  offs <- replicateM (n+1) genOffsets
   let dats =
           onN (P.repeat (plotDat . P.take m))
-        $ $(simNodesFromGraph (kn 6)) offs
+        $ $(simNodesFromGraph defClockConfig (complete 6)) offs
       -- TODO: auto-ebs
   void $ file "clocks.pdf" (xlabel "Time (ps)" % ylabel "Period (ps)" % L.foldl' (%) mp dats)
  where
   onN = $(onTup 6)
   (0, n) = A.bounds g
-  g = kn 6
+  g = complete 6
   plotDat = $(asPlotN 5)
   -- TODO: extrClocks ... n depends on node degree...
 
