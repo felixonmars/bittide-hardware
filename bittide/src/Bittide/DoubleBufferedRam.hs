@@ -241,7 +241,18 @@ wbStorage' initContent wbIn = delayControls wbIn wbOut
   delayControls m2s s2m0 = mux inCycle s2m1 (pure emptyWishboneS2M)
    where
     inCycle = (busCycle <$> m2s) .&&. (strobe <$> m2s)
-    delayedAck = register False (acknowledge <$> s2m0)
+    -- This is a workaround for an issue with the VexRiscv FFI.
+    -- The requests/responses have a one cycle delay, which means that it's
+    -- possible for the CPU to make a request, get no reply (because of the
+    -- delay) and then present that request *again*, even if the slave responds
+    -- directly.
+    -- The issue is that when the *next* request gets presented, the CPU would
+    -- see the acknowledge from a past request and get wrong data.
+    --
+    -- This workaround works by making sure there can be no two ACKs directly
+    -- after another. That forces the CPU to wait at least one cycle and
+    -- present/expect the right request/response.
+    delayedAck = register False (acknowledge <$> s2m0 .&&. (not <$> delayedAck))
     delayedErr = register False (err <$> s2m0)
     s2m1 = (\wb newAck newErr-> wb{acknowledge = newAck, err = newErr})
       <$> s2m0 <*> delayedAck <*> delayedErr
