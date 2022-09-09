@@ -13,6 +13,7 @@ opt-level = "z"
 exclude = [
   "firmware/examples",
   "firmware/tests",
+  "vex-riscv",
 ]
 members = [
   "firmware/*",

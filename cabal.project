@@ -8,6 +8,7 @@ packages:
   contranomy-sim/
   contranomy/
   elastic-buffer-sim/
+  vex-riscv/
 
 write-ghc-environment-files: always
 

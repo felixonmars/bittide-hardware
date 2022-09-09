@@ -19,6 +19,8 @@ import Protocols (Circuit (Circuit))
 import Protocols.Wishbone
 
 import Bittide.SharedTypes hiding (delayControls)
+import Debug.Trace (trace)
+import Text.Printf (printf)
 
 data InitialContent n a where
   NonReloadable :: Vec n a -> InitialContent n a
@@ -156,7 +158,14 @@ wbStorage' SNat initContent wbIn = delayControls wbIn wbOut
     addrLegal = addr < (natToNum @(4 * depth)) && not byteAligned
 
     masterActive = strobe && busCycle
-    err = masterActive && not addrLegal
+    err = masterActive &&
+      {-
+      trace (
+        "addr        " <> printf "%X" (toInteger addr) <> "\n" <>
+        "read data   " <> printf "%X" (toInteger readData) <> "\n"
+        )
+        -- -}
+        not addrLegal
     acknowledge = masterActive && (not isReloadable || romDone) && addrLegal
     masterWriting = masterActive && writeEnable && not err
 
@@ -203,7 +212,7 @@ wbStorage' SNat initContent wbIn = delayControls wbIn wbOut
   delayControls m2s s2m0 = mux inCycle s2m1 (pure emptyWishboneS2M)
    where
     inCycle = (busCycle <$> m2s) .&&. (strobe <$> m2s)
-    delayedAck = register False (acknowledge <$> s2m0)
+    delayedAck = register False (acknowledge <$> s2m0 .&&. (not <$> delayedAck))
     delayedErr = register False (err <$> s2m0)
     s2m1 = (\wb newAck newErr-> wb{acknowledge = newAck, err = newErr})
       <$> s2m0 <*> delayedAck <*> delayedErr

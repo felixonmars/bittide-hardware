@@ -16,6 +16,7 @@ import Protocols
 import Protocols.Wishbone
 
 import qualified Data.IntMap                 as I
+import Debug.Trace
 
 type DWord = BitVector (4 * 8)
 
@@ -49,18 +50,19 @@ wishboneStorage' name state inputs = dataOut :- (wishboneStorage' name state' in
   , strobe
   , writeEnable
   } = input
-  file' | writeEnable = I.fromList assocList <> file
+  file' | ack' && writeEnable = I.fromList assocList <> file
         | otherwise   = file
   ack' = busCycle && strobe
   address = fromIntegral (unpack $ addr :: Unsigned 32)
-  readData = if not writeEnable
+  readData = if ack' && not writeEnable
     then
-      (file `lookup'` (address+3)) ++#
-      (file `lookup'` (address+2)) ++#
-      (file `lookup'` (address+1)) ++#
-      (file `lookup'` address)
+      (file `lookup'` (address+3)) ++# -- 80
+      (file `lookup'` (address+2)) ++# -- 00
+      (file `lookup'` (address+1)) ++# -- 00
+      (file `lookup'` address)         -- b7
+
     else 0
-  lookup' x addr' = I.findWithDefault (error $ name <> ": Uninitialized Memory Address = " <> show addr') addr' x
+  lookup' x addr' = I.findWithDefault (trace (show addr') 0) addr' x
   assocList = case busSelect of
     $(bitPattern "0001") -> [byte0]
     $(bitPattern "0010") -> [byte1]
