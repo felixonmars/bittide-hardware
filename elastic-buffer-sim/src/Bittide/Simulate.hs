@@ -111,12 +111,12 @@ elasticBuffer _mode _size clkRead clkWrite =
   fmap fromIntegral
     <$> (toggle <$> block <*> readCount)
  where
-  waitMidway :: Signal readDom (Unsigned 12) -> Signal readDom Bool
+  waitMidway :: Signal readDom (Unsigned 11) -> Signal readDom Bool
   waitMidway = mealy clkRead resetGen enableGen go False
    where
     go True _ = (True, True)
     go False i | i >= (maxBound `div` 2) = (True, True)
                | otherwise = (False, False)
   block = waitMidway readCount
-  FifoOut{..} = dcFifo (defConfig @12) clkWrite resetGen clkRead resetGen (pure (Just ())) block
+  FifoOut{..} = dcFifo (defConfig @11) clkWrite resetGen clkRead resetGen (pure (Just ())) block
   toggle b = if b then Just else const Nothing
