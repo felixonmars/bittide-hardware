@@ -12,7 +12,8 @@ Provides a rudimentary simulation of elastic buffers.
 
 module Bittide.Simulate where
 
-import Clash.Prelude
+import Clash.Cores.Xilinx.DcFifo hiding (DataCount)
+import Clash.Explicit.Prelude
 import Clash.Signal.Internal
 import GHC.Stack
 import Numeric.Natural
@@ -105,44 +106,13 @@ elasticBuffer ::
   Clock readDom ->
   Clock writeDom ->
   Signal readDom DataCount
-elasticBuffer mode size clkRead clkWrite
-  | Clock _ (Just readPeriods) <- clkRead
-  , Clock _ (Just writePeriods) <- clkWrite
-  = go 0 (targetDataCount size) readPeriods writePeriods
+elasticBuffer _mode _size clkRead clkWrite =
+  fromIntegral <$> readCount
  where
-  go !relativeTime !fillLevel rps wps@(writePeriod :- _) =
-    if relativeTime < toInteger writePeriod
-    then goRead relativeTime fillLevel rps wps
-    else goWrite relativeTime fillLevel rps wps
-
-  goWrite relativeTime fillLevel rps (writePeriod :- wps) =
-    go (relativeTime - toInteger writePeriod) newFillLevel rps wps
+  waitMidway :: Signal readDom (Unsigned 12) -> Signal readDom Bool
+  waitMidway = mealy clkRead resetGen enableGen go False
    where
-    newFillLevel
-      | fillLevel >= size = case mode of
-          Saturate -> fillLevel
-          Error -> error "elasticBuffer: overflow"
-      | otherwise = fillLevel + 1
-
-  goRead relativeTime fillLevel (readPeriod :- rps) wps =
-    newFillLevel :- go (relativeTime + toInteger readPeriod) newFillLevel rps wps
-   where
-    newFillLevel
-      | fillLevel <= 0 = case mode of
-          Saturate -> 0
-          Error -> error "elasticBuffer: underflow"
-      | otherwise = fillLevel - 1
-
-elasticBuffer mode size (Clock ss Nothing) clock1 =
-  -- Convert read clock to a "dynamic" clock if it isn't one
-  let
-    period = snatToNum (clockPeriod @readDom)
-  in
-    elasticBuffer mode size (Clock ss (Just (pure period))) clock1
-
-elasticBuffer mode size clock0 (Clock ss Nothing) =
-  -- Convert write clock to a "dynamic" clock if it isn't one
-  let
-    period = snatToNum (clockPeriod @writeDom)
-  in
-    elasticBuffer mode size clock0 (Clock ss (Just (pure period)))
+    go True _ = (True, True)
+    go False i | i >= (maxBound `div` 2) = (True, True)
+               | otherwise = (False, False)
+  FifoOut{..} = dcFifo (defConfig @12) clkWrite resetGen clkRead resetGen (pure (Just ())) (waitMidway readCount)
