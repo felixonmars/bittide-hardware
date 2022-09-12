@@ -14,6 +14,7 @@ import Clash.Explicit.Prelude
 import Clash.Signal.Internal
 
 import Data.Bifunctor (second)
+import Data.Maybe (isJust)
 
 import Bittide.ClockControl
 
@@ -26,17 +27,23 @@ data ControlSt = ControlSt
 initControlSt :: ControlSt
 initControlSt = ControlSt 0 0 NoChange
 
+sumMaybes :: Vec n (Maybe DataCount) -> DataCount
+sumMaybes Nil = 0
+sumMaybes (Just x `Cons` xs) = x + sumMaybes xs
+sumMaybes (Nothing `Cons` _) = error "internal error."
+
 callisto ::
   forall n dom.
   (KnownNat n, 1 <= n) =>
   ClockControlConfig ->
   SettlePeriod ->
   ControlSt ->
-  Signal dom (Vec n DataCount) ->
+  Signal dom (Vec n (Maybe DataCount)) ->
   (ControlSt, Signal dom SpeedChange)
 callisto
   cfg@ClockControlConfig{..} settleCounter ControlSt{..} (dataCounts :- nextDataCounts)
-  | settleCounter > cccSettlePeriod
+  -- only ask for clock speed changes if all elastic buffers are ready
+  | settleCounter > cccSettlePeriod && all isJust dataCounts
   = second (b_kNext :-) nextChanges
  where
 
@@ -47,7 +54,7 @@ callisto
   k_p = 2e-4 :: Double
   k_i = 1e-11 :: Double
   r_k =
-    let tot = realToFrac (sum dataCounts)
+    let tot = realToFrac (sumMaybes dataCounts)
         expected = realToFrac (targetDataCount cccBufferSize)
         len = realToFrac (length dataCounts)
     in tot - expected * len
