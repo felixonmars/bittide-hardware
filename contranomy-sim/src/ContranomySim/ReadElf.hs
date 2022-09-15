@@ -31,8 +31,8 @@ readElf elf =
  where
   go sec acc@(is, ds)
     -- Address is 0: Not mapped to virtual memory
-    | elfSectionAddr sec == 0
-    = acc
+    --  | elfSectionAddr sec == 0
+    --  = acc
 
     -- Section contains instruction memory
     | SHF_EXECINSTR `elem` elfSectionFlags sec
@@ -47,8 +47,8 @@ readElf elf =
     = (is, addData (elfSectionAddr sec) (elfSectionData sec) ds)
 
     | otherwise
-    = error ("Section is not executable XOR data:\n" <> show sec)
+    = acc
 
   addData (fromIntegral -> startAddr) str mem =
     let bytes = pack <$> BS.unpack str
-     in I.fromList (L.zip [startAddr..] bytes) <> mem
+     in I.fromAscList (L.zip [startAddr..] bytes) <> mem
