@@ -1,5 +1,5 @@
 cabal-version:       2.4
-name:                contranomy-sim
+name:                demo1-sim
 version:             0.1
 License:             Apache-2.0
 license-file:        LICENSE
@@ -70,54 +70,40 @@ common common-options
     ghc-typelits-extra,
     ghc-typelits-knownnat,
 
-  other-modules: Paths_contranomy_sim
-
+  other-modules: Paths_demo1_sim
 
 library
   import: common-options
   hs-source-dirs: src
-  exposed-modules:
-    ContranomySim.Print
-    ContranomySim.ReadElf
-    ContranomySim.MemoryMapConsts
-    ContranomySim.DeviceTreeCompiler
+  exposed-modules: TH
   build-depends:
-    elf >= 0.31 && < 0.32,
     bytestring >= 0.10 && < 0.11,
-    process >= 1.6 && < 1.7,
-    directory >= 1.3 && < 1.4,
-    bittide-extra
+    contranomy,
+    contranomy-sim,
 
-executable simcontranomy
+    bittide,
+    base,
+    containers,
+    clash-prelude,
+    clash-ghc,
+    filepath,
+    template-haskell,
+    directory
+
+executable demo1
   import: common-options
-  main-is: SimContranomy.hs
+  main-is: Demo1.hs
   hs-source-dirs: bin
   build-depends:
     bytestring >= 0.10 && < 0.11,
     contranomy,
     contranomy-sim,
 
+    bittide,
     base,
     containers,
     clash-prelude,
-    clash-ghc
-
-
-test-suite unittests
-  import: common-options
-  hs-source-dirs: tests
-  type: exitcode-stdio-1.0
-  ghc-options: -threaded
-  main-is: tests.hs
-  other-modules:
-    Tests.ContranomySim.ReadElf
-    Tests.ContranomySim.Print
-  build-depends:
-    contranomy,
-    contranomy-sim,
-    hedgehog >= 1.0 && < 1.2,
-    tasty >= 1.2 && < 1.5,
-    tasty-hedgehog >= 1.2 && < 1.3,
-    tasty-hunit >= 0.10 && < 0.11,
-    bytestring,
-    elf,
+    clash-ghc,
+    filepath,
+    template-haskell,
+    demo1-sim
