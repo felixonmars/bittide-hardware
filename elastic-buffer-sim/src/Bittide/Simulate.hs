@@ -94,15 +94,10 @@ data OverflowMode
   -- practise. Overflowing elastic buffer cannot happen in a real Bittide system.
   | Error
 
--- | Simple model of a FIFO that only models the interesting part for conversion:
--- data counts.
 elasticBufferXilinx ::
   forall readDom writeDom.
   (HasCallStack, KnownDomain readDom, KnownDomain writeDom) =>
-  -- | What behavior to pick on underflow/overflow
   OverflowMode ->
-  -- | Size of FIFO. To reflect our target platforms, this should be a power of two
-  -- where typical sizes would probably be: 16, 32, 64, 128.
   ElasticBufferSize ->
   Clock readDom ->
   Clock writeDom ->
@@ -115,7 +110,7 @@ elasticBufferXilinx _mode _size clkRead clkWrite =
   waitMidway = mealy clkRead resetGen enableGen go False
    where
     go True _ = (True, True)
-    go False i | i >= (maxBound `div` 2) = (True, True)
+    go False i | i >= maxBound `div` 2 = (True, True)
                | otherwise = (False, False)
   block = waitMidway readCount
   FifoOut{..} = dcFifo (defConfig @12) clkWrite resetGen clkRead resetGen (pure (Just ())) block
