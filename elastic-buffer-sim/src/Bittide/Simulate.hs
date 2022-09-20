@@ -96,7 +96,7 @@ data OverflowMode
 
 -- | Simple model of a FIFO that only models the interesting part for conversion:
 -- data counts.
-elasticBuffer ::
+elasticBufferXilinx ::
   forall readDom writeDom.
   (HasCallStack, KnownDomain readDom, KnownDomain writeDom) =>
   -- | What behavior to pick on underflow/overflow
@@ -107,7 +107,7 @@ elasticBuffer ::
   Clock readDom ->
   Clock writeDom ->
   Signal readDom (Maybe DataCount)
-elasticBuffer _mode _size clkRead clkWrite =
+elasticBufferXilinx _mode _size clkRead clkWrite =
   fmap fromIntegral
     <$> (toggle <$> block <*> readCount)
  where
@@ -120,3 +120,58 @@ elasticBuffer _mode _size clkRead clkWrite =
   block = waitMidway readCount
   FifoOut{..} = dcFifo (defConfig @12) clkWrite resetGen clkRead resetGen (pure (Just ())) block
   toggle b = if b then Just else const Nothing
+
+-- | Simple model of a FIFO that only models the interesting part for conversion:
+-- data counts.
+elasticBuffer ::
+  forall readDom writeDom.
+  (HasCallStack, KnownDomain readDom, KnownDomain writeDom) =>
+  -- | What behavior to pick on underflow/overflow
+  OverflowMode ->
+  -- | Size of FIFO. To reflect our target platforms, this should be a power of two
+  -- where typical sizes would probably be: 16, 32, 64, 128.
+  ElasticBufferSize ->
+  Clock readDom ->
+  Clock writeDom ->
+  Signal readDom (Maybe DataCount)
+elasticBuffer mode size clkRead clkWrite
+  | Clock _ (Just readPeriods) <- clkRead
+  , Clock _ (Just writePeriods) <- clkWrite
+  = Just <$> go 0 (targetDataCount size) readPeriods writePeriods
+ where
+  go !relativeTime !fillLevel rps wps@(writePeriod :- _) =
+    if relativeTime < toInteger writePeriod
+    then goRead relativeTime fillLevel rps wps
+    else goWrite relativeTime fillLevel rps wps
+
+  goWrite relativeTime fillLevel rps (writePeriod :- wps) =
+    go (relativeTime - toInteger writePeriod) newFillLevel rps wps
+   where
+    newFillLevel
+      | fillLevel >= size = case mode of
+          Saturate -> fillLevel
+          Error -> error "elasticBuffer: overflow"
+      | otherwise = fillLevel + 1
+
+  goRead relativeTime fillLevel (readPeriod :- rps) wps =
+    newFillLevel :- go (relativeTime + toInteger readPeriod) newFillLevel rps wps
+   where
+    newFillLevel
+      | fillLevel <= 0 = case mode of
+          Saturate -> 0
+          Error -> error "elasticBuffer: underflow"
+      | otherwise = fillLevel - 1
+
+elasticBuffer mode size (Clock ss Nothing) clock1 =
+  -- Convert read clock to a "dynamic" clock if it isn't one
+  let
+    period = snatToNum (clockPeriod @readDom)
+  in
+    elasticBuffer mode size (Clock ss (Just (pure period))) clock1
+
+elasticBuffer mode size clock0 (Clock ss Nothing) =
+  -- Convert write clock to a "dynamic" clock if it isn't one
+  let
+    period = snatToNum (clockPeriod @writeDom)
+  in
+    elasticBuffer mode size clock0 (Clock ss (Just (pure period)))
