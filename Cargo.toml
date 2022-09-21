@@ -2,9 +2,20 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
+[profile.release]
+# Automatically strip symbols from the binary.
+strip = true
+
+# Optimize for size
+opt-level = "z"
+
 [workspace]
-exclude = ["firmware/examples"]
 members = [
-  "firmware/*",
+  "firmware/bittide-sys",
+
+  "firmware/examples/fdt-read",
+  "firmware/examples/hello",
+
   "demo-1/ping-pong-management",
 ]
+resolver = "2"
