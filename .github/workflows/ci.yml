@@ -349,6 +349,11 @@ jobs:
         run: |
           cp .github/cabal.project.simulation cabal.project.local
 
+      - name: Install Device Tree Compiler
+        run: |
+          apt-get update
+          apt-get install -y device-tree-compiler
+
       - name: Update Cabal index info
         run: |
           cabal update
@@ -374,7 +379,7 @@ jobs:
 
       - name: Run unittests
         run: |
-          cabal run elastic-buffer-sim:unittests
+          cabal run contranomy-sim:unittests
 
 
   bittide-tests:
@@ -432,6 +437,7 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
+          target: riscv32imc-unknown-none-elf
           components: clippy, rustfmt
 
       - name: Rust formatting
@@ -443,7 +449,7 @@ jobs:
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features
+          args: --target riscv32imc-unknown-none-elf --all-features
 
   firmware-unit-tests:
     name: Firmware Unit Tests
@@ -480,7 +486,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all
+          args: --target x86_64-unknown-linux-gnu --all
 
   firmware-build-examples:
     name: Firmware Build Examples
