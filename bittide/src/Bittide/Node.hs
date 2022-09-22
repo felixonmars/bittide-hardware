@@ -66,13 +66,14 @@ data NodeConfig externalLinks gppes where
     NodeConfig externalLinks gppes
 
 -- | A 'node' consists of a 'switch', 'managementUnit' and @0..n@ 'gppe's.
-node ::
+nodeMvp1 ::
   forall dom extLinks gppes .
   (HiddenClockResetEnable dom, KnownNat extLinks, KnownNat gppes) =>
   NodeConfig extLinks gppes ->
   Vec extLinks (Signal dom (DataLink 64)) ->
-  Vec extLinks (Signal dom (DataLink 64))
-node (NodeConfig nmuConfig switchConfig gppeConfigs) linksIn = linksOut
+  ( Vec extLinks (Signal dom (DataLink 64))
+  , Vec gppes (Signal dom (BitVector 8)))
+nodeMvp1 (NodeConfig nmuConfig switchConfig gppeConfigs) linksIn = (linksOut, pios)
  where
   (switchOut, swS2Ms) = mkswitch switchConfig swM2Ss switchIn
 
@@ -83,7 +84,7 @@ node (NodeConfig nmuConfig switchConfig gppeConfigs) linksIn = linksOut
 
   nmuS2Ms = swS2Ms ++ peS2Ms
 
-  (pesToSwitch, concat -> peS2Ms) = unzip $ gppe <$> zip3 gppeConfigs switchToPes (unconcatI peM2Ss)
+  (pesToSwitch, concat -> peS2Ms, pios) = unzip3 $ gppe <$> zip3 gppeConfigs switchToPes (unconcatI peM2Ss)
 
 -- | Configuration for the management unit and its link.
 -- The management unit contains the 4 wishbone busses that each pe has
@@ -101,7 +102,7 @@ data ManagementConfig nodeBusses where
 data GppeConfig where
   GppeConfig ::
     LinkConfig 4 32->
-    PeConfig 4 ->
+    PeConfig 5 ->
     GppeConfig
 
 {-# NOINLINE gppe #-}
@@ -109,21 +110,25 @@ data GppeConfig where
 -- | A general purpose 'processingElement' to be part of a Bittide Node. It contains
 -- a 'processingElement', 'linkToPe' and 'peToLink' which create the interface for the
 -- Bittide Link. It takes a 'GppeConfig', incoming link and four incoming 'WishboneM2S'
--- signals and produces the outgoing link alongside four 'WishhboneS2M' signals.
--- The order of Wishbone busses is as follows:
+-- signals and produces the outgoing link alongside an outgoing PIO and
+-- four 'WishboneS2M' signals. The order of Wishbone busses is as follows:
 -- ('rxUnit' :> 'scatterUnitWb' :> 'txUnit' :> 'gatherUnitWb' :> Nil).
 gppe ::
   HiddenClockResetEnable dom =>
   ( GppeConfig
   , Signal dom (DataLink 64)
   , Vec 4 (Signal dom (WishboneM2S 4 32))) ->
-  (Signal dom (DataLink 64), Vec 4 (Signal dom (WishboneS2M 4)))
+  ( Signal dom (DataLink 64)
+  , Vec 4 (Signal dom (WishboneS2M 4))
+  , Signal dom (BitVector 8))
 gppe (GppeConfig linkConfig peConfig, linkIn, splitAtI -> (nmuM2S0, nmuM2S1)) =
-  (linkOut, nmuS2M0 ++ nmuS2M1)
+  (linkOut, nmuS2M0 ++ nmuS2M1, pio)
  where
   (suS2M, nmuS2M0) = linkToPe linkConfig linkIn sc suM2S nmuM2S0
   (linkOut, guS2M, nmuS2M1) = peToLink linkConfig sc guM2S nmuM2S1
-  (suM2S :> guM2S :> Nil) = processingElement peConfig (suS2M :> guS2M :> Nil)
+  (suM2S :> guM2S :> pioM2S :> Nil) = processingElement peConfig
+    (suS2M :> guS2M :> pioS2M :> Nil)
+  (pio, pioS2M) = registerWb WishbonePriority 0 pioM2S (pure Nothing)
   sc = sequenceCounter
 
 {-# NOINLINE managementUnit #-}
