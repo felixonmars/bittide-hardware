@@ -87,36 +87,11 @@ contentGenerator content = case compareSNat d1 (SNat @romSize) of
   _ -> (pure Nothing, pure True)
 
 
-data InitialContent n a = Reloadable (Vec n a) | NonReloadable (Vec n a) | Undefined
-
-getContent :: InitialContent n a -> Vec n a
-getContent (Reloadable v) = v
-getContent (NonReloadable v) = v
-getContent (Undefined) = error "getContent: Content is Undefined."
-
-contentGenerator ::
-  forall dom romSize targetSize a .
-  ( HiddenClockResetEnable dom
-  , KnownNat targetSize,  1 <= targetSize
-  , KnownNat romSize, romSize <= targetSize
-  , NFDataX a) =>
-  Vec romSize a ->
-  (Signal dom (Maybe (Located targetSize a)), Signal dom Bool)
-contentGenerator Nil = (pure Nothing, pure True)
-contentGenerator content@(Cons _ _) = (mux (running .&&. not <$> done) writeOp (pure Nothing), done)
- where
-  running = register False $ pure True
-  writeOp = curry Just . resize <$> romAddr0 <*> element
-  done = register False (done .||. (running .&&. romAddr0 .==. pure maxBound))
-  romAddr0 = register (maxBound :: Index romSize) romAddr1
-  romAddr1 = satSucc SatWrap <$> romAddr0
-  element = rom content (bitCoerce <$> romAddr1)
-
 -- | Dual-ported Wishbone storage element, essentially a wrapper for the single-ported version
 -- which priorities port A over port B. Transactions are not aborted, but when two transactions
 -- are initiated at the same time, port A will have priority.
 wbStorageDP ::
-  forall dom depth initDepth aw .
+  forall dom depth aw .
   ( HiddenClockResetEnable dom
   , KnownNat aw, 2 <= aw
   , KnownNat depth, 1 <= depth) =>
@@ -146,7 +121,7 @@ wbStorageDP initial aM2S bM2S = (aS2M, bS2M)
 -- | Wishbone storage element with 'Circuit' interface from "Protocols.Wishbone" that
 -- allows for half-word aligned reads and writes.
 wbStorage ::
-  forall dom depth initDepth aw .
+  forall dom depth aw .
   ( HiddenClockResetEnable dom
   , KnownNat aw, 2 <= aw
   , KnownNat depth, 1 <= depth) =>
