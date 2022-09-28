@@ -388,7 +388,7 @@ simNodesFromGraph ccc g = do
     ebE i j =
         ebClkClk
           `AppE` VarE (clockNames A.! i)
-          `AppE` resetGenV
+          `AppE` resets i
           `AppE` enableGenV
           `AppE` VarE (clockNames A.! j)
           `AppE` resetGenV
@@ -406,12 +406,13 @@ simNodesFromGraph ccc g = do
       AppE
         (callistoClockControlV
           `AppE` VarE (clockNames A.! k)
-          `AppE` (VarE 'mkReset `AppE` resets) -- resetGenV
+          `AppE` resets k
           `AppE` enableGenV
           `AppE` cccE)
         (mkVecE [ VarE (ebNames A.! (k, i)) | i <- g A.! k ])
-     where
-      resets = mkVecE [ VarE (ebRstNames A.! (k, i)) | i <- g A.! k ]
+
+    resets k = VarE 'mkReset `AppE` mkVecE [ VarE (ebRstNames A.! (k, i)) | i <- g A.! k ]
+
     clockControlD k = valD (VarP (clockControlNames A.! k)) (clockControlE k)
 
     ebs = fmap (uncurry ebD) [ (i, j) | i <- indices, j <- g A.! i ]

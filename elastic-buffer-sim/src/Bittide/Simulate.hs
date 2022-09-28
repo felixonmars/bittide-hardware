@@ -89,6 +89,8 @@ type ResetClockControl = Bool
 type HasUnderflowed = Bool
 type HasOverflowed = Bool
 type DisableTilHalf = Bool
+type ForceReset = Bool -- force a "reset" to EB midpoint
+type PropagateReset = Bool
 
 type DisableWrites = Bool
 type DisableReads = Bool
@@ -117,12 +119,18 @@ ebController ::
   (Signal readDom DataCount, Signal readDom ResetClockControl)
 ebController size clkRead rstRead enaRead clkWrite rstWrite enaWrite =
   unbundle
-    (go <$> rdToggle <*> outRd <*> overflowRd)
+    (go <$> rdToggle <*> outRd <*> overflowRd <*> requestRst)
  where
+  rstReadS = unsafeToHighPolarity rstRead
+
+  -- tie off reset to mealy while we do our "reset" dance
+  ne'erRst = unsafeFromHighPolarity (pure False)
+
   (outRd, outWr) = elasticBuffer size clkRead clkWrite rdToggle wrToggle
 
-  go True (dc, False) False = (dc, False)
-  go _ (dc, _) _ = (dc, True)
+  go True (dc, False) False _ = (dc, False)
+  go _ (dc, _) _ True = (dc, True)
+  go _ (dc, _) _ _ = (dc, False)
 
   overflowRd =
     dualFlipFlopSynchronizer clkWrite clkRead rstRead enaRead False (snd <$> outWr)
@@ -132,7 +140,7 @@ ebController size clkRead rstRead enaRead clkWrite rstWrite enaWrite =
   wrDisable =
     dualFlipFlopSynchronizer clkRead clkWrite rstWrite enaWrite False wrDisableRd
 
-  (wrDisableRd, rdDisable) = unbundle direct
+  (requestRst, wrDisableRd, rdDisable) = unbundle direct
 
   -- Write reset process (that is accurate in the read domain):
   --
@@ -143,19 +151,23 @@ ebController size clkRead rstRead enaRead clkWrite rstWrite enaWrite =
   -- read domain)
   -- 3. Proceed reading
 
-  direct :: Signal readDom (DisableWrites, DisableReads)
+  direct :: Signal readDom (PropagateReset, DisableWrites, DisableReads)
   direct =
-    register clkRead rstRead enaRead (False, False)
-      $ mealy clkRead rstRead enaRead f Wait (bundle (outRd, overflowRd))
+    register clkRead ne'erRst enaRead (False, False, False)
+      $ mealy clkRead ne'erRst enaRead f Wait (bundle (rstReadS, outRd, overflowRd))
    where
-    f :: WrResetDomain -> ((DataCount, Underflow), Overflow) -> (WrResetDomain, (DisableWrites, DisableReads))
-    f EnableWritesDisableReads ((d, _), _) | d == targetDataCount size = (Wait, (False, False))
-    f EnableWritesDisableReads _ = (EnableWritesDisableReads, (False, True))
-    f DisableWritesEnableReads ((0, _), _) = (EnableWritesDisableReads, (False, True))
-    f DisableWritesEnableReads _ = (DisableWritesEnableReads, (True, False))
-    f Wait ((_, True), _) = (EnableWritesDisableReads, (False, True))
-    f Wait (_, True) = (DisableWritesEnableReads, (True, False))
-    f Wait _ = (Wait, (False, False))
+    f ::
+      WrResetDomain ->
+      (ForceReset, (DataCount, Underflow), Overflow) ->
+      (WrResetDomain, (PropagateReset, DisableWrites, DisableReads))
+    f _ (True, _, _) = (DisableWritesEnableReads, (False, True, False))
+    f EnableWritesDisableReads (_, (d, _), _) | d == targetDataCount size = (Wait, (False, False, False))
+    f EnableWritesDisableReads _ = (EnableWritesDisableReads, (False, False, True))
+    f DisableWritesEnableReads (_, (0, _), _) = (EnableWritesDisableReads, (False, False, True))
+    f DisableWritesEnableReads _ = (DisableWritesEnableReads, (False, True, False))
+    f Wait (_, (_, True), _) = (EnableWritesDisableReads, (True, False, True))
+    f Wait (_, _, True) = (DisableWritesEnableReads, (True, True, False))
+    f Wait _ = (Wait, (False, False, False))
 
 type Underflow = Bool
 type Overflow = Bool
