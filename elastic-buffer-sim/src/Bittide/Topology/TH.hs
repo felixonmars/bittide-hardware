@@ -381,8 +381,16 @@ simNodesFromGraph ccc g = do
   clockNames <- traverse (\i -> newName ("clock" ++ show i)) indicesArr
   clockControlNames <- traverse (\i -> newName ("clockControl" ++ show i)) indicesArr
   clockSignalNames <- traverse (\i -> newName ("clk" ++ show i ++ "Signal")) indicesArr
+
+  -- the (i,j)th elastic buffer has i as its read domain clock, j as its write
+  -- domain clock
   ebNames <- traverse (\(i, j) -> newName ("eb" ++ show i ++ show j)) ebA
+
+  -- the (i,j) th ebRst signal comes _out_ of the (i,j)th elastic buffer; if
+  -- the eb overflows it will will direct the clock controller and the other
+  -- elastic buffers belonging to the node to reset
   ebRstNames <- traverse (\(i, j) -> newName ("ebRst" ++ show i ++ show j)) ebA
+
   cccE <- lift ccc
   let
     ebE i j =
@@ -402,6 +410,8 @@ simNodesFromGraph ccc g = do
     clkD i = valD (VarP (clockNames A.! i)) (clkE i)
     clkSignalD i = valD (VarP (clockSignalNames A.! i)) (VarE 'extractPeriods `AppE` VarE (clockNames A.! i))
 
+    -- clock controller for kth node; attaches to eb_k1, eb_k2, ...
+    -- (assuming 1, 2 are nodes connected to node k)
     clockControlE k =
       AppE
         (callistoClockControlV
