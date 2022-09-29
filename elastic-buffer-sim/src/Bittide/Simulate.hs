@@ -91,6 +91,7 @@ type HasOverflowed = Bool
 type DisableTilHalf = Bool
 type ForceReset = Bool -- force a "reset" to EB midpoint
 type PropagateReset = Bool
+type ResetEbs = Bool
 
 type DisableWrites = Bool
 type DisableReads = Bool
@@ -116,7 +117,7 @@ ebController ::
   Clock writeDom ->
   Reset writeDom ->
   Enable writeDom ->
-  (Signal readDom DataCount, Signal readDom ResetClockControl)
+  (Signal readDom DataCount, Signal readDom ForceReset, Signal readDom ResetClockControl)
 ebController size clkRead rstRead enaRead clkWrite rstWrite enaWrite =
   unbundle
     (go <$> rdToggle <*> outRd <*> overflowRd <*> requestRst)
@@ -128,9 +129,9 @@ ebController size clkRead rstRead enaRead clkWrite rstWrite enaWrite =
 
   (outRd, outWr) = elasticBuffer size clkRead clkWrite rdToggle wrToggle
 
-  go True (dc, False) False _ = (dc, False)
-  go _ (dc, _) _ True = (deepErrorX "Resetting...", True)
-  go _ (dc, _) _ _ = (dc, False)
+  go True (dc, False) False _ = (dc, False, False)
+  go _ (dc, _) _ True = (deepErrorX "Data count censored", True, True)
+  go _ (dc, _) _ _ = (deepErrorX "Data count censored.", False, True)
 
   overflowRd =
     dualFlipFlopSynchronizer clkWrite clkRead rstRead enaRead False (snd <$> outWr)
