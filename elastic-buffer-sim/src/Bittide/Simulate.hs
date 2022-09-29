@@ -85,7 +85,7 @@ tunableClockGen settlePeriod periodOffset stepSize _reset speedChange =
     in
       newPeriod :- go newSettleCounter newPeriod scs
 
-type ResetClockControl = Bool
+type ResetClockControl = Bool -- request a reset in other elastic buffers
 type HasUnderflowed = Bool
 type HasOverflowed = Bool
 type DisableTilHalf = Bool
@@ -129,7 +129,7 @@ ebController size clkRead rstRead enaRead clkWrite rstWrite enaWrite =
   (outRd, outWr) = elasticBuffer size clkRead clkWrite rdToggle wrToggle
 
   go True (dc, False) False _ = (dc, False)
-  go _ (dc, _) _ True = (dc, True)
+  go _ (dc, _) _ True = (deepErrorX "Resetting...", True)
   go _ (dc, _) _ _ = (dc, False)
 
   overflowRd =
@@ -204,7 +204,7 @@ elasticBuffer size clkRead clkWrite readEna writeEna
       go (relativeTime - toInteger writePeriod) newFillLevel rps wps rdEna wrEnas
    where
     next@(newFillLevel, _)
-      | fillLevel >= size = (targetDataCount size, True)
+      | fillLevel >= size = (size, True)
       | otherwise = (fillLevel + 1, False)
 
   goWrite relativeTime fillLevel rps (writePeriod :- wps) rdEna (_ :- wrEnas) =
@@ -217,7 +217,7 @@ elasticBuffer size clkRead clkWrite readEna writeEna
       go (relativeTime + toInteger readPeriod) newFillLevel rps wps rdEnas wrEnas
    where
     next@(newFillLevel, _)
-      | fillLevel <= 0 = (targetDataCount size, True)
+      | fillLevel <= 0 = (0, True)
       | otherwise = (fillLevel - 1, False)
 
   goRead relativeTime fillLevel (readPeriod :- rps) wps (_ :- rdEnas) wrEnas =
