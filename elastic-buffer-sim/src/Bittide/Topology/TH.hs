@@ -366,11 +366,7 @@ extractPeriods ::
 extractPeriods (Clash.Clock _ (Just s)) = s
 extractPeriods _ = pure (Clash.snatToNum (Clash.clockPeriod @dom))
 
-mkReset ::
-  (Clash.KnownDomain dom, Clash.KnownNat n, 1 Clash.<= n) =>
-  Clash.Vec n (Clash.Signal dom Bool) ->
-  Clash.Reset dom
-mkReset = Clash.unsafeFromHighPolarity . fmap or . Clash.bundle
+delayed clk = VarE 'Clash.delay `AppE` clk `AppE` VarE 'Clash.enableGen `AppE` ConE 'True
 
 -- | Given a graph with \(n\) nodes, generate a function which takes a list of \(n\)
 -- offsets (divergence from spec) and returns a tuple of signals for each clock
@@ -382,28 +378,27 @@ simNodesFromGraph ccc g = do
   clockControlNames <- traverse (\i -> newName ("clockControl" ++ show i)) indicesArr
   clockSignalNames <- traverse (\i -> newName ("clk" ++ show i ++ "Signal")) indicesArr
 
-  -- the (i,j)th elastic buffer has i as its read domain clock, j as its write
-  -- domain clock
   ebNames <- traverse (\(i, j) -> newName ("eb" ++ show i ++ show j)) ebA
 
-  -- the (i,j) th ebRst signal comes _out_ of the (i,j)th elastic buffer; if
-  -- the eb overflows it will will direct the the other
-  -- elastic buffers belonging to the node to reset
-  ebRstNames <- traverse (\(i, j) -> newName ("ebRst" ++ show i ++ show j)) ebA
-
-  ccRstNames <- traverse (\(i, j) -> newName ("ccRst" ++ show i ++ show j)) ebA
+  ccRstNames <- traverse (\i -> newName ("ccRst" ++ show i)) indicesArr
 
   cccE <- lift ccc
   let
     ebE i j =
-        ebClkClk
+        ebReadDomV
           `AppE` VarE (clockNames A.! i)
-          `AppE` resets i
-          `AppE` enableGenV
           `AppE` VarE (clockNames A.! j)
           `AppE` resetGenV
+          `AppE` resetGenV
           `AppE` enableGenV
-    ebD i j = valD (TupP [VarP (ebNames A.! (i, j)), VarP (ebRstNames A.! (i, j)), VarP (ccRstNames A.! (i, j))]) (ebE i j)
+          `AppE` enableGenV
+    ebVec k =
+        directEbsV
+          `AppE` VarE (clockNames A.! k)
+          `AppE` resetGenV
+          `AppE` enableGenV
+          `AppE` mkVecE [ ebE k i | i <- g A.! k ]
+    ebD k = valD (TupP [VarP (ccRstNames A.! k), mkVecP [VarP (ebNames A.! (k, i)) | i <- g A.! k]]) (ebVec k)
 
     clkE i =
       AppE
@@ -419,14 +414,16 @@ simNodesFromGraph ccc g = do
           `AppE` ccReset k
           `AppE` enableGenV
           `AppE` cccE)
+        -- just unbundle eb-by-node
         (mkVecE [ VarE (ebNames A.! (k, i)) | i <- g A.! k ])
 
-    resets k = VarE 'mkReset `AppE` mkVecE [ VarE (ebRstNames A.! (k, i)) | i <- g A.! k ]
-    ccReset k = VarE 'mkReset `AppE` mkVecE [ VarE (ccRstNames A.! (k, i)) | i <- g A.! k ]
+    ccReset k =
+        (VarE 'Clash.unsafeFromHighPolarity `compose` delayed (VarE (clockNames A.! k)))
+          `AppE` VarE (ccRstNames A.! k)
 
     clockControlD k = valD (VarP (clockControlNames A.! k)) (clockControlE k)
 
-    ebs = fmap (uncurry ebD) [ (i, j) | i <- indices, j <- g A.! i ]
+    ebs = fmap ebD indices
     clockControls = clockControlD <$> indices
     clkDs = clkD <$> indices
     clkSignalDs = clkSignalD <$> indices
@@ -462,15 +459,15 @@ simNodesFromGraph ccc g = do
   bundleV = VarE 'Clash.bundle
   consC = ConE 'Clash.Cons
   nilC = ConE 'Clash.Nil
-  ebV = VarE 'ebController
+  ebReadDomV = VarE 'ebReadDom
+  directEbsV = VarE 'directEbs
   tunableClockGenV = VarE 'tunableClockGen
   resetGenV = VarE 'Clash.resetGen
   enableGenV = VarE 'Clash.enableGen
-  ebClkClk = ebV `AppE` ebSize
   callistoClockControlV = VarE 'callistoClockControl
   mkVecE = foldr (\x -> AppE (AppE consC x)) nilC
+  mkVecP = foldr (\x y -> InfixP x '(Clash.:>) y) (ConP 'Clash.Nil [])
 
-  ebSize = LitE (IntegerL (toInteger (cccBufferSize ccc)))
   step = LitE (IntegerL (cccStepSize ccc))
   settlePeriod = LitE (IntegerL (toInteger (cccSettlePeriod ccc)))
 

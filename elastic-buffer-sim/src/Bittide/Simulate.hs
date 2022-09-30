@@ -9,6 +9,7 @@ Provides a rudimentary simulation of elastic buffers.
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Bittide.Simulate where
 
@@ -96,79 +97,109 @@ type ResetEbs = Bool
 type DisableWrites = Bool
 type DisableReads = Bool
 
-data WrResetDomain = Wait -- ^ after reset/when nothing has overflowed
-                   | DisableWritesEnableReads
-                   | EnableWritesDisableReads
-                   deriving (Generic, NFDataX)
+data EbControlSt = EnableAll | DisableWritesEnableReads | EnableWritesDisableReads deriving (Generic, NFDataX)
 
--- | This wrapper disables reads or writes when the elastic buffer
--- over-/underflows, as appropriate.
---
--- It also censors 'DataCount' after an over-/underflow, so that we do not take
--- measurements from an elastic buffer until it has settled back to its
--- midpoint.
-ebController ::
+data EbSt = Drain | Fill | Wait deriving (Generic, NFDataX)
+
+data EbMarshalSt = ResetInProgress | Stable deriving (Generic, NFDataX)
+
+ebReadDom ::
   forall readDom writeDom.
   (KnownDomain readDom, KnownDomain writeDom) =>
-  ElasticBufferSize ->
+  Clock writeDom ->
+  Clock readDom ->
+  Reset readDom ->
+  Reset writeDom ->
+  Enable readDom ->
+  Enable writeDom ->
+  Signal readDom EbControlSt ->
+  Signal readDom EbRdDom
+ebReadDom wrClk rdClk rdRst wrRst rdEna wrEna rdCtrl =
+  bundle (readCount, isUnderflow, ebRdOver)
+ where
+  ebRdOver = dualFlipFlopSynchronizer wrClk rdClk rdRst rdEna False isOverflow
+  FifoOut{..} = ebWrap rdClk rdRst rdToggle wrClk wrRst wrToggle
+  wrToggle = dualFlipFlopSynchronizer rdClk wrClk wrRst wrEna True wrToggleRd
+
+  (rdToggle, wrToggleRd) = unbundle (controlStToBools <$> rdCtrl)
+
+  controlStToBools :: EbControlSt -> (Bool, Bool)
+  controlStToBools EnableAll = (True, True)
+  controlStToBools DisableWritesEnableReads = (True, False)
+  controlStToBools EnableWritesDisableReads = (False, True)
+
+data FifoOut readDom writeDom =
+  FifoOut
+    { isOverflow :: Signal writeDom Overflow
+    , writeCount :: Signal writeDom DataCount
+    , isUnderflow :: Signal readDom Underflow
+    , readCount :: Signal readDom DataCount
+    }
+
+type EbRdDom = (DataCount, Underflow, Overflow)
+
+data NodeInternalSt n = Continue | ResetState (Vec n EbControlSt) deriving (Generic, NFDataX)
+
+-- | Marshal all the elastic buffers of a node together.
+directEbs ::
+  forall readDom n.
+  (KnownDomain readDom, KnownNat n, 1 <= n) =>
   Clock readDom ->
   Reset readDom ->
   Enable readDom ->
+  Vec n (Signal readDom EbControlSt -> Signal readDom EbRdDom) ->
+  -- | Request a reset from clock control for the node
+  (Signal readDom ForceReset, Vec n (Signal readDom DataCount))
+directEbs clk rst ena ebs = (nodeRequestReset, dcs)
+ where
+  dcs = fmap (fmap fst3) ebsOut
+
+  fst3 (x,_,_) = x
+
+  ebsOut = zipWith ($) ebs (unbundle marshalNodes)
+  -- is bundle/unbundle causing trouble?
+  ebsInit = delay clk ena (64, False, False) <$> ebsOut
+
+  -- output 'EbControlSt' to each node (given its status etc.)
+  marshalNodes :: Signal readDom (Vec n EbControlSt)
+  marshalNodes = mealy clk rst ena go Continue (bundle ebsInit)
+   where
+    -- track EbControlSt
+    go :: NodeInternalSt n -> Vec n (DataCount, Underflow, Overflow) -> (NodeInternalSt n, Vec n EbControlSt)
+    go Continue ebOuts | not (any underflowOrOverflow ebOuts) = (Continue, repeat EnableAll)
+
+  -- request reset to node's clock controller
+  nodeRequestReset :: Signal readDom ForceReset
+  nodeRequestReset = mealy clk rst ena go Stable (bundle ebsInit)
+   where
+    go :: EbMarshalSt -> Vec n (DataCount, Underflow, Overflow) -> (EbMarshalSt, ForceReset)
+    go Stable ebOuts | not (any underflowOrOverflow ebOuts) = (Stable, False)
+                     | otherwise = (ResetInProgress, True)
+    go ResetInProgress ebOuts | all atMidpoint ebOuts = (Stable, False)
+                              | otherwise = (ResetInProgress, True)
+
+  atMidpoint :: (DataCount, a, b) -> Bool
+  atMidpoint (dc, _, _) = dc == 64
+
+  underflowOrOverflow :: (a, Underflow, Overflow) -> Bool
+  underflowOrOverflow (_, u, o) = u || o
+
+ebWrap ::
+  (KnownDomain readDom, KnownDomain writeDom) =>
+  Clock readDom ->
+  Reset readDom ->
+  Signal readDom Bool ->
   Clock writeDom ->
   Reset writeDom ->
-  Enable writeDom ->
-  (Signal readDom DataCount, Signal readDom ForceReset, Signal readDom ResetClockControl)
-ebController size clkRead rstRead enaRead clkWrite rstWrite enaWrite =
-  unbundle
-    (go <$> rdToggle <*> outRd <*> overflowRd <*> requestRst)
+  Signal writeDom Bool ->
+  FifoOut readDom writeDom
+ebWrap rdClk _rdRst rdEna wrClk _wrRst wrEna =
+  FifoOut{..}
  where
-  rstReadS = unsafeToHighPolarity rstRead
+  (readCount, isUnderflow) = unbundle rdOuts
+  (writeCount, isOverflow) = unbundle wrOuts
 
-  -- tie off reset to mealy while we do our "reset" dance
-  ne'erRst = unsafeFromHighPolarity (pure False)
-
-  (outRd, outWr) = elasticBuffer size clkRead clkWrite rdToggle wrToggle
-
-  go True (dc, False) False _ = (dc, False, False)
-  go _ (dc, _) _ True = (deepErrorX "Data count censored", True, True)
-  go _ (dc, _) _ _ = (deepErrorX "Data count censored.", False, True)
-
-  overflowRd =
-    dualFlipFlopSynchronizer clkWrite clkRead rstRead enaRead False (snd <$> outWr)
-
-  wrToggle = not <$> wrDisable; rdToggle = not <$> rdDisable
-
-  wrDisable =
-    dualFlipFlopSynchronizer clkRead clkWrite rstWrite enaWrite False wrDisableRd
-
-  (requestRst, wrDisableRd, rdDisable) = unbundle direct
-
-  -- Write reset process (that is accurate in the read domain):
-  --
-  -- 1. Disable writes (keep reads enabled), drain completely (control from the
-  -- read domain)
-  -- domain)
-  -- 2. Re-enable writes, disable reads until data count is exactly half (in the
-  -- read domain)
-  -- 3. Proceed reading
-
-  direct :: Signal readDom (PropagateReset, DisableWrites, DisableReads)
-  direct =
-    register clkRead ne'erRst enaRead (False, False, False)
-      $ mealy clkRead ne'erRst enaRead f Wait (bundle (rstReadS, outRd, overflowRd))
-   where
-    f ::
-      WrResetDomain ->
-      (ForceReset, (DataCount, Underflow), Overflow) ->
-      (WrResetDomain, (PropagateReset, DisableWrites, DisableReads))
-    f _ (True, _, _) = (DisableWritesEnableReads, (False, True, False))
-    f EnableWritesDisableReads (_, (d, _), _) | d == targetDataCount size = (Wait, (False, False, False))
-    f EnableWritesDisableReads _ = (EnableWritesDisableReads, (False, False, True))
-    f DisableWritesEnableReads (_, (0, _), _) = (EnableWritesDisableReads, (False, False, True))
-    f DisableWritesEnableReads _ = (DisableWritesEnableReads, (False, True, False))
-    f Wait (_, (_, True), _) = (EnableWritesDisableReads, (True, False, True))
-    f Wait (_, _, True) = (DisableWritesEnableReads, (True, True, False))
-    f Wait _ = (Wait, (False, False, False))
+  (rdOuts, wrOuts) = elasticBuffer 128 rdClk wrClk rdEna wrEna
 
 type Underflow = Bool
 type Overflow = Bool
