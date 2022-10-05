@@ -115,9 +115,9 @@ ebReadDom ::
   Signal readDom EbControlSt ->
   Signal readDom EbRdDom
 ebReadDom wrClk rdClk rdRst wrRst rdEna wrEna rdCtrl =
-  pure (64, False, False) -- bundle (readCount, isUnderflow, ebRdOver)
+  bundle (readCount, isUnderflow, ebRdOver)
  where
-  ebRdOver = dualFlipFlopSynchronizer wrClk rdClk rdRst rdEna False isOverflow
+  ebRdOver = pure False -- dualFlipFlopSynchronizer wrClk rdClk rdRst rdEna False isOverflow
   -- combinatorial loop here...
   FifoOut{..} = ebWrap rdClk rdRst rdToggle wrClk wrRst wrToggle
   wrToggle = dualFlipFlopSynchronizer rdClk wrClk wrRst wrEna True wrToggleRd
@@ -196,7 +196,7 @@ ebWrap ::
 ebWrap rdClk _rdRst rdEna wrClk _wrRst wrEna =
   FifoOut{..}
  where
-  (readCount, isUnderflow) = unbundle rdOuts
+  (readCount, isUnderflow) = (pure 64, pure False) -- unbundle rdOuts
   (writeCount, isOverflow) = unbundle wrOuts
 
   (rdOuts, wrOuts) = elasticBuffer 128 rdClk wrClk rdEna wrEna
@@ -230,8 +230,7 @@ elasticBuffer size clkRead clkWrite readEna writeEna
       then goRead relativeTime fillLevel rps wps
       else goWrite relativeTime fillLevel rps wps
 
-  goWrite relativeTime fillLevel rps (writePeriod :- wps) rdEna (wrEna :- wrEnas)
-    | wrEna =
+  goWrite relativeTime fillLevel rps (writePeriod :- wps) rdEna (True :- wrEnas) =
     second (next :-) $
       go (relativeTime - toInteger writePeriod) newFillLevel rps wps rdEna wrEnas
    where
@@ -243,8 +242,7 @@ elasticBuffer size clkRead clkWrite readEna writeEna
     second ((fillLevel, False) :-) $
       go (relativeTime - toInteger writePeriod) fillLevel rps wps rdEna wrEnas
 
-  goRead relativeTime fillLevel (readPeriod :- rps) wps (rdEna :- rdEnas) wrEnas
-    | rdEna =
+  goRead relativeTime fillLevel (readPeriod :- rps) wps (True :- rdEnas) wrEnas =
     first (next :-) $
       go (relativeTime + toInteger readPeriod) newFillLevel rps wps rdEnas wrEnas
    where
