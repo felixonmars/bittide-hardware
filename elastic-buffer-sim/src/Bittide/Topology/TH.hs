@@ -379,6 +379,7 @@ simNodesFromGraph ccc g = do
   clockSignalNames <- traverse (\i -> newName ("clk" ++ show i ++ "Signal")) indicesArr
 
   ebNames <- traverse (\(i, j) -> newName ("eb" ++ show i ++ show j)) ebA
+  ebVecNames <- traverse (\i -> newName ("ebNode" ++ show i)) indicesArr
 
   ccRstNames <- traverse (\i -> newName ("ccRst" ++ show i)) indicesArr
 
@@ -398,7 +399,7 @@ simNodesFromGraph ccc g = do
           `AppE` resetGenV
           `AppE` enableGenV
           `AppE` mkVecE [ ebE k i | i <- g A.! k ]
-    ebD k = valD (TupP [VarP (ccRstNames A.! k), mkVecP [VarP (ebNames A.! (k, i)) | i <- g A.! k]]) (ebVec k)
+    ebD k = valD (TupP [VarP (ccRstNames A.! k), AsP (ebVecNames A.! k) (mkVecP [VarP (ebNames A.! (k, i)) | i <- g A.! k])]) (ebVec k)
 
     clkE i =
       AppE
@@ -408,14 +409,12 @@ simNodesFromGraph ccc g = do
     clkSignalD i = valD (VarP (clockSignalNames A.! i)) (VarE 'extractPeriods `AppE` VarE (clockNames A.! i))
 
     clockControlE k =
-      AppE
-        (callistoClockControlV
-          `AppE` VarE (clockNames A.! k)
-          `AppE` ccReset k
-          `AppE` enableGenV
-          `AppE` cccE)
-        -- just unbundle eb-by-node
-        (mkVecE [ VarE (ebNames A.! (k, i)) | i <- g A.! k ])
+      callistoClockControlV
+        `AppE` VarE (clockNames A.! k)
+        `AppE` ccReset k
+        `AppE` enableGenV
+        `AppE` cccE
+        `AppE` VarE (ebVecNames A.! k)
 
     ccReset k =
         VarE 'Clash.unsafeFromHighPolarity
