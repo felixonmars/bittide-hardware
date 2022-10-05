@@ -115,9 +115,10 @@ ebReadDom ::
   Signal readDom EbControlSt ->
   Signal readDom EbRdDom
 ebReadDom wrClk rdClk rdRst wrRst rdEna wrEna rdCtrl =
-  bundle (readCount, isUnderflow, ebRdOver)
+  pure (64, False, False) -- bundle (readCount, isUnderflow, ebRdOver)
  where
   ebRdOver = dualFlipFlopSynchronizer wrClk rdClk rdRst rdEna False isOverflow
+  -- combinatorial loop here...
   FifoOut{..} = ebWrap rdClk rdRst rdToggle wrClk wrRst wrToggle
   wrToggle = dualFlipFlopSynchronizer rdClk wrClk wrRst wrEna True wrToggleRd
 
@@ -158,11 +159,10 @@ directEbs clk rst ena ebs = (nodeRequestReset, dcs)
 
   ebsOut = zipWith ($) ebs (unbundle marshalNodes)
   -- is bundle/unbundle causing trouble?
-  ebsInit = delay clk ena (64, False, False) <$> ebsOut
 
   -- output 'EbControlSt' to each node (given its status etc.)
   marshalNodes :: Signal readDom (Vec n EbControlSt)
-  marshalNodes = mealy clk rst ena go Continue (bundle ebsInit)
+  marshalNodes = mealy clk rst ena go Continue (bundle ebsOut)
    where
     -- track EbControlSt
     go :: NodeInternalSt n -> Vec n (DataCount, Underflow, Overflow) -> (NodeInternalSt n, Vec n EbControlSt)
@@ -170,7 +170,7 @@ directEbs clk rst ena ebs = (nodeRequestReset, dcs)
 
   -- request reset to node's clock controller
   nodeRequestReset :: Signal readDom ForceReset
-  nodeRequestReset = mealy clk rst ena go Stable (bundle ebsInit)
+  nodeRequestReset = mealy clk rst ena go Stable (bundle ebsOut)
    where
     go :: EbMarshalSt -> Vec n (DataCount, Underflow, Overflow) -> (EbMarshalSt, ForceReset)
     go Stable ebOuts | not (any underflowOrOverflow ebOuts) = (Stable, False)

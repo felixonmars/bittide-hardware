@@ -418,7 +418,7 @@ simNodesFromGraph ccc g = do
         (mkVecE [ VarE (ebNames A.! (k, i)) | i <- g A.! k ])
 
     ccReset k =
-        (VarE 'Clash.unsafeFromHighPolarity `compose` delayed (VarE (clockNames A.! k)))
+        VarE 'Clash.unsafeFromHighPolarity
           `AppE` VarE (ccRstNames A.! k)
 
     clockControlD k = valD (VarP (clockControlNames A.! k)) (clockControlE k)
