@@ -117,7 +117,7 @@ ebReadDom ::
 ebReadDom wrClk rdClk rdRst wrRst rdEna wrEna rdCtrl =
   bundle (readCount, isUnderflow, ebRdOver)
  where
-  ebRdOver = pure False -- dualFlipFlopSynchronizer wrClk rdClk rdRst rdEna False isOverflow
+  ebRdOver = dualFlipFlopSynchronizer wrClk rdClk rdRst rdEna False isOverflow
   -- combinatorial loop here...
   FifoOut{..} = ebWrap rdClk rdRst rdToggle wrClk wrRst wrToggle
   wrToggle = dualFlipFlopSynchronizer rdClk wrClk wrRst wrEna True wrToggleRd
@@ -157,16 +157,25 @@ directEbs clk rst ena ebs = (nodeRequestReset, dcs)
 
   fst3 (x,_,_) = x
 
+  -- FIXME: do nodes connect to themselves in this scheme?
+  --
+  -- (why does it matter)... MEALY!!
+  --
+  -- (the eb->clock controller->eb there was there before...?)
+  -- maybe it's the intra-node aaah
+
   ebsOut = zipWith ($) ebs (unbundle marshalNodes)
-  -- is bundle/unbundle causing trouble?
 
   -- output 'EbControlSt' to each node (given its status etc.)
   marshalNodes :: Signal readDom (Vec n EbControlSt)
-  marshalNodes = mealy clk rst ena go Continue (bundle ebsOut)
+  marshalNodes =
+    delay clk ena (repeat EnableAll) $
+      mealy clk rst ena go Continue (bundle ebsOut)
    where
     -- track EbControlSt
     go :: NodeInternalSt n -> Vec n (DataCount, Underflow, Overflow) -> (NodeInternalSt n, Vec n EbControlSt)
-    go Continue ebOuts | not (any underflowOrOverflow ebOuts) = (Continue, repeat EnableAll)
+    go Continue ebOuts | not (any underflowOrOverflow ebOuts) = (Continue, repeat undefined)
+    -- go Continue ebOuts | not (any underflowOrOverflow ebOuts) = (Continue, repeat EnableAll)
 
   -- request reset to node's clock controller
   nodeRequestReset :: Signal readDom ForceReset
@@ -196,7 +205,7 @@ ebWrap ::
 ebWrap rdClk _rdRst rdEna wrClk _wrRst wrEna =
   FifoOut{..}
  where
-  (readCount, isUnderflow) = (pure 64, pure False) -- unbundle rdOuts
+  (readCount, isUnderflow) = unbundle rdOuts
   (writeCount, isOverflow) = unbundle wrOuts
 
   (rdOuts, wrOuts) = elasticBuffer 128 rdClk wrClk rdEna wrEna
