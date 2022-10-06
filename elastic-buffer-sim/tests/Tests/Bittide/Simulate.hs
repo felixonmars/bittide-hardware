@@ -50,8 +50,8 @@ case_directEbsTerminates =
  where
   ebCtl = ebReadDom @Fast @Slow clockGen clockGen resetGen resetGen enableGen enableGen
   (ebRst, ebDat :> Nil) = directEbs clockGen resetGen enableGen (ebCtl :> Nil)
-  outSample = sampleN 10000 ebDat
-  -- FIXME: doesn't force itnernal w/ out clock controller eh.
+  outSample = sampleN 5 ebDat
+  -- forcing ebRst works...
 
 case_clockControlMaxBound :: Assertion
 case_clockControlMaxBound = do
