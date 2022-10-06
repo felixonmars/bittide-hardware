@@ -60,7 +60,9 @@ matplotWrite nm clockDats ebDats = do
   void $
     file
       ("_build/clocks" ++ nm ++ ".pdf")
-      (xlabel "Time (ps)" % ylabel "Period (ps)" % foldPlots (setLineWidth <$> clockDats))
+      (xlabel "Time (ps)"
+        % ylabel "Period (ps)"
+        % foldPlots (setLineWidth <$> clockDats))
   void $
     file
       ("_build/elasticbuffers" ++ nm ++ ".pdf")
@@ -346,7 +348,10 @@ asPlotN i = do
     LamE [VarP m] $
               bimapV
                 plotPairs
-                (VarE 'foldPlots `compose` mapV (VarE 'setLineWidth) `compose` mapV plotPairs `compose` VarE 'L.transpose)
+                (VarE 'foldPlots
+                  `compose` mapV (VarE 'setLineWidth)
+                  `compose` mapV plotPairs
+                  `compose` VarE 'L.transpose)
     `compose` VarE 'unzip
     `compose` mapV g
     `compose` (VarE 'take `AppE` VarE m)
@@ -365,8 +370,6 @@ extractPeriods ::
   Clash.Signal dom Natural
 extractPeriods (Clash.Clock _ (Just s)) = s
 extractPeriods _ = pure (Clash.snatToNum (Clash.clockPeriod @dom))
-
-delayed clk = VarE 'Clash.delay `AppE` clk `AppE` VarE 'Clash.enableGen `AppE` ConE 'True
 
 -- | Given a graph with \(n\) nodes, generate a function which takes a list of \(n\)
 -- offsets (divergence from spec) and returns a tuple of signals for each clock
@@ -399,7 +402,10 @@ simNodesFromGraph ccc g = do
           `AppE` resetGenV
           `AppE` enableGenV
           `AppE` mkVecE [ ebE k i | i <- g A.! k ]
-    ebD k = valD (TupP [VarP (ccRstNames A.! k), AsP (ebVecNames A.! k) (mkVecP [VarP (ebNames A.! (k, i)) | i <- g A.! k])]) (ebVec k)
+    ebD k =
+      valD
+        (TupP [VarP (ccRstNames A.! k), AsP (ebVecNames A.! k) (mkVecP [VarP (ebNames A.! (k, i)) | i <- g A.! k])])
+        (ebVec k)
 
     clkE i =
       AppE

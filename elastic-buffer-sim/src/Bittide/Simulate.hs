@@ -157,13 +157,6 @@ directEbs clk rst ena ebs = (nodeRequestReset, dcs)
 
   fst3 (x,_,_) = x
 
-  -- FIXME: do nodes connect to themselves in this scheme?
-  --
-  -- (why does it matter)... MEALY!!
-  --
-  -- (the eb->clock controller->eb there was there before...?)
-  -- maybe it's the intra-node aaah
-
   ebsOut = zipWith ($) ebs (unbundle marshalNodes)
 
   -- output 'EbControlSt' to each node (given its status etc.)
@@ -172,10 +165,8 @@ directEbs clk rst ena ebs = (nodeRequestReset, dcs)
     delay clk ena (repeat EnableAll) $
       mealy clk rst ena go Continue (bundle ebsOut)
    where
-    -- track EbControlSt
     go :: NodeInternalSt n -> Vec n (DataCount, Underflow, Overflow) -> (NodeInternalSt n, Vec n EbControlSt)
-    go Continue ebOuts | not (any underflowOrOverflow ebOuts) = (Continue, repeat undefined)
-    -- go Continue ebOuts | not (any underflowOrOverflow ebOuts) = (Continue, repeat EnableAll)
+    go Continue ebOuts | not (any underflowOrOverflow ebOuts) = (Continue, repeat EnableAll)
 
   -- request reset to node's clock controller
   nodeRequestReset :: Signal readDom ForceReset
