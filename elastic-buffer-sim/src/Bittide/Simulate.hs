@@ -97,9 +97,7 @@ type ResetEbs = Bool
 type DisableWrites = Bool
 type DisableReads = Bool
 
-data EbControlSt = EnableAll | DisableWritesEnableReads | EnableWritesDisableReads deriving (Generic, NFDataX)
-
-data EbSt = Drain | Fill | Wait deriving (Generic, NFDataX)
+data EbControlSt = Wait | Drain | Fill deriving (Generic, NFDataX)
 
 data EbMarshalSt = ResetInProgress | Stable deriving (Generic, NFDataX)
 
@@ -125,9 +123,9 @@ ebReadDom wrClk rdClk rdRst wrRst rdEna wrEna rdCtrl =
   (rdToggle, wrToggleRd) = unbundle (controlStToBools <$> rdCtrl)
 
   controlStToBools :: EbControlSt -> (Bool, Bool)
-  controlStToBools EnableAll = (True, True)
-  controlStToBools DisableWritesEnableReads = (True, False)
-  controlStToBools EnableWritesDisableReads = (False, True)
+  controlStToBools Wait = (True, True)
+  controlStToBools Drain = (True, False)
+  controlStToBools Fill = (False, True)
 
 data FifoOut readDom writeDom =
   FifoOut
@@ -162,11 +160,32 @@ directEbs clk rst ena ebs = (nodeRequestReset, dcs)
   -- output 'EbControlSt' to each node (given its status etc.)
   marshalNodes :: Signal readDom (Vec n EbControlSt)
   marshalNodes =
-    delay clk ena (repeat EnableAll) $
+    delay clk ena (repeat Wait) $
       mealy clk rst ena go Continue (bundle ebsOut)
    where
     go :: NodeInternalSt n -> Vec n (DataCount, Underflow, Overflow) -> (NodeInternalSt n, Vec n EbControlSt)
-    go Continue ebOuts | not (any underflowOrOverflow ebOuts) = (Continue, repeat EnableAll)
+    go Continue ebOuts
+      | not (any underflowOrOverflow ebOuts) = (Continue, repeat Wait)
+      | otherwise =
+        let
+          ctrls = fmap handleUO ebOuts
+        in (ResetState ctrls, ctrls)
+    go (ResetState ctrls) ebOuts
+      | all atMidpoint ebOuts = (Continue, repeat Wait)
+      | otherwise =
+        let
+          nextCtrls = zipWith stepNext ebOuts ctrls
+        in (ResetState nextCtrls, nextCtrls)
+
+  -- drain stops at 64 (read domain, fine)
+  -- fill stops at 128 and goes to drain (so that it will be accurate count in
+  -- the read domain)
+  stepNext :: (DataCount, Underflow, Overflow) -> EbControlSt -> EbControlSt
+  stepNext (64, _, _) Drain = Wait
+  stepNext _ Drain = Drain
+  stepNext (128, _, _) Fill = Drain
+  stepNext _ Fill = Fill
+  stepNext out _ = handleUO out
 
   -- request reset to node's clock controller
   nodeRequestReset :: Signal readDom ForceReset
@@ -183,6 +202,11 @@ directEbs clk rst ena ebs = (nodeRequestReset, dcs)
 
   underflowOrOverflow :: (a, Underflow, Overflow) -> Bool
   underflowOrOverflow (_, u, o) = u || o
+
+  handleUO :: (a, Underflow, Overflow) -> EbControlSt
+  handleUO (_, False, False) = Wait
+  handleUO (_, True, _) = Fill
+  handleUO (_, _, True) = Drain
 
 ebWrap ::
   (KnownDomain readDom, KnownDomain writeDom) =>

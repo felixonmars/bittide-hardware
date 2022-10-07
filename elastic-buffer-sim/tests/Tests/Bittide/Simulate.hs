@@ -49,9 +49,9 @@ case_readDomTerminates :: Assertion
 case_readDomTerminates =
   assertBool "doesn't <<loop>>" (ebRdOut `deepseqX` True)
  where
-  ebRdOut = sampleN 5 ebRd
+  ebRdOut = sampleN 1000 ebRd
   ebRd =
-    ebReadDom @Fast @Slow clockGen clockGen resetGen resetGen enableGen enableGen (pure EnableAll)
+    ebReadDom @Fast @Slow clockGen clockGen resetGen resetGen enableGen enableGen (pure Wait)
 
 case_directEbsTerminates :: Assertion
 case_directEbsTerminates =
