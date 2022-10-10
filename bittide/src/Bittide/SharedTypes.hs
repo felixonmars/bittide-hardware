@@ -104,11 +104,11 @@ registersToData = paddedToData . registersToPadded
 -- | Transforms _Padded_ to _RegisterBank_.
 paddedToRegisters :: forall bw a . (BitPack a, KnownNat bw) => Padded bw a -> RegisterBank bw a
 paddedToRegisters (Padded a) = case timesDivRU @bw @(BitSize a) of
-  Dict -> RegisterBank (unpack ((0b0 :: BitVector (Pad a bw)) ++# pack a))
+  Dict -> RegisterBank (reverse $ unpack ((0b0 :: BitVector (Pad a bw)) ++# pack a))
 
 -- | Transforms _RegisterBank_ to _Padded_.
 registersToPadded :: forall bw a . (Paddable a, KnownNat bw) => RegisterBank bw a -> Padded bw a
-registersToPadded (RegisterBank vec) =
+registersToPadded (RegisterBank (reverse -> vec)) =
   case timesDivRU @bw @(BitSize a) of
     Dict -> Padded . unpack . snd $ split @_ @(Pad a bw) @(BitSize a) (pack vec)
 
