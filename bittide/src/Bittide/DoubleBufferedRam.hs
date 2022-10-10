@@ -151,7 +151,7 @@ wbStorage' initContent wbIn = delayControls wbIn wbOut
   readDataB = ramB readAddrB writeEntryB byteSelectB
 
   (ramA, ramB, isReloadable) = case initContent of
-    NonReloadable (ByteVec (splitAtI -> (b, a))) ->
+    NonReloadable (ByteVec (splitAtI -> (a, b))) ->
       ( blockRamByteAddressable @_ @depth $ ByteVec a
       , blockRamByteAddressable @_ @depth $ ByteVec b
       , False)
@@ -159,7 +159,7 @@ wbStorage' initContent wbIn = delayControls wbIn wbOut
       (blockRamByteAddressableU, blockRamByteAddressableU, True)
     Undefined ->
       (blockRamByteAddressableU, blockRamByteAddressableU, False)
-    (NonReloadable (Vec (unzip @depth . bitCoerce -> (b, a)))) ->
+    (NonReloadable (Vec (unzip @depth . bitCoerce -> (a, b)))) ->
       ( blockRamByteAddressable @_ @depth $ Vec a
       , blockRamByteAddressable @_ @depth $ Vec b
       , False)
@@ -194,19 +194,19 @@ wbStorage' initContent wbIn = delayControls wbIn wbOut
     (bsHigh,bsLow) = split busSelect
     (writeDataHigh, writeDataLow) = split writeData
 
-    ((addrB, byteSelectB0, writeDataB), (addrA, byteSelectA0, writeDataA))
+    ((addrA, byteSelectA0, writeDataA), (addrB, byteSelectB0, writeDataB))
       | wordAligned =
-        ( (wbAddr, bsHigh, writeDataHigh)
-        , (wbAddr, bsLow, writeDataLow))
-      | otherwise =
         ( (wbAddr, bsLow, writeDataLow)
-        , (satSucc SatBound wbAddr, bsHigh, writeDataHigh))
+        , (wbAddr, bsHigh, writeDataHigh))
+      | otherwise =
+        ( (satSucc SatBound wbAddr, bsHigh, writeDataHigh)
+        , (wbAddr, bsLow, writeDataLow))
 
     (romWrite, romDone) = romOut0
-    (romWriteB, romWriteA) = splitWrite romWrite
-    (writeEntryB0, writeEntryA0)
-      | isReloadable && not romDone = (romWriteB, romWriteA)
-      | masterWriting = (Just (addrB, writeDataB),Just (addrA, writeDataA))
+    (romWriteA, romWriteB) = splitWrite romWrite
+    (writeEntryA0, writeEntryB0)
+      | isReloadable && not romDone = (romWriteA, romWriteB)
+      | masterWriting = (Just (addrA, writeDataA),Just (addrB, writeDataB))
       | otherwise = (Nothing,Nothing)
     readData
       | wordAligned = rdB ++# rdA
