@@ -142,7 +142,7 @@ wbStorage' ::
   Signal dom (WishboneS2M (Bytes 4))
 wbStorage' initContent wbIn = delayControls wbIn wbOut
  where
-  depth = resize $ bitCoerce (maxBound :: Index depth)
+  maxAddr = 2 * resize (bitCoerce (maxBound :: Index depth))
   romOut = case initContent of
     Reloadable content-> bundle $ contentGenerator content
     other -> deepErrorX ("wbStorage': No contentgenerator for " <> show other)
@@ -184,7 +184,7 @@ wbStorage' initContent wbIn = delayControls wbIn wbOut
     -- We don't care about the first bit to determine the address alignment because
     -- byte aligned addresses are considered illegal.
     (not -> wordAligned, byteAligned) = bimap unpack unpack $ split alignment
-    addrLegal = addr <= (2 * depth) && not byteAligned
+    addrLegal = addr <= maxAddr && not byteAligned
 
     masterActive = strobe && busCycle
     err = masterActive && not addrLegal
