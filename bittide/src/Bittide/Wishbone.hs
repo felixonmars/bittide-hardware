@@ -65,10 +65,10 @@ singleMasterInterconnect config =
       | active    = fromMaybe allSlaves out
       | otherwise = allSlaves
      where
-      out = (\i -> replace i toAllSlaves{busCycle, strobe, writeEnable} allSlaves) <$> sel
+      out = (\i -> replace i toAllSlaves{strobe} allSlaves) <$> sel
       newAddr = addr - maybe 0 (config !!) sel
       allSlaves = repeat toAllSlaves
-      toAllSlaves = m{addr=newAddr, busCycle = False, strobe = False}
+      toAllSlaves = m{addr=newAddr, strobe = False}
 
 
 -- | Version of 'singleMasterInterconnect' that does not use the 'Circuit' abstraction
