@@ -20,8 +20,7 @@ import Clash.Prelude
 import Clash.Hedgehog.Sized.Vector
 import Clash.Hedgehog.Sized.Index (genIndex)
 import Clash.Sized.Vector (unsafeFromList)
-import Data.Constraint
-import Data.Constraint.Nat.Extra
+
 import Data.Proxy
 import Data.String
 import Data.Type.Equality ((:~:)(Refl))

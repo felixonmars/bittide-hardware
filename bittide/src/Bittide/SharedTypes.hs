@@ -2,7 +2,7 @@
 --
 -- SPDX-License-Identifier: Apache-2.0
 
-{-# OPTIONS_GHC -fconstraint-solver-iterations=0 #-}
+{-# OPTIONS_GHC -fconstraint-solver-iterations=8 #-}
 
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -11,16 +11,12 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PatternSynonyms #-}
 module Bittide.SharedTypes where
 
 import Clash.Prelude
 
 import Data.Constraint
 import Data.Constraint.Nat.Extra
-import Data.Type.Equality ((:~:)(Refl))
 import Protocols.Wishbone
 import Data.Typeable
 

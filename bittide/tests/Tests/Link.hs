@@ -246,7 +246,7 @@ rxSendSC = property $ do
       -- causing an extra cycle of delay.
       offTime0 <- forAll $ Gen.enum 2 iterationsTotal
       offTime1 <- forAll $ Gen.enum 2 iterationsTotal
-      remoteSeqCounts <- forAll . Gen.list (Range.singleton (1 + iterations) $
+      remoteSeqCounts <- forAll . Gen.list (Range.singleton (1 + iterations)) $
         genUnsigned @_ @scw Range.constantBounded
       let
         onTime = iterationDuration * iterations
