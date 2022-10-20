@@ -81,8 +81,7 @@ genCalendarConfig ::
   ( KnownNat nBytes
   , 1 <= nBytes
   , KnownNat (BitSize calEntry)
-  , BitPack calEntry
-  , NFDataX calEntry
+  , Paddable calEntry
   , Show calEntry
   , ShowX calEntry
   , KnownNat addrW) =>
@@ -300,7 +299,7 @@ writeWithWishbone ::
   (Index n, entry) ->
   [WishboneM2S addrW nBytes (Bytes nBytes)]
 writeWithWishbone (a, entry) =
-  case getRegs entry of
+  case getRegsLe entry of
     RegisterBank vec -> toList $ fmap wbWriteOp $ zip indicesI (vec :< fromIntegral a)
 
 -- | Use both the wishbone M2S bus and S2M bus to decode the S2M bus operations into the
@@ -333,10 +332,7 @@ directedWbDecoding (wbM2S:m2sRest) (_:s2mRest) = out
 
   filterNoOps l = [(m2s,s2m)| (m2s,s2m) <- l, m2s /= wbNothingM2S]
   entry = case V.fromList $ P.reverse entryList of
-    Just (vec :: Vec (Regs a (nBytes * 8)) (Bytes nBytes)) ->
-        case timesDivRU @(nBytes * 8) @(BitSize a) of
-          Dict ->
-            paddedToData . bvAsPadded @(Regs a (nBytes * 8) * nBytes * 8) $ pack vec
+    Just (vec :: Vec (Regs a (nBytes * 8)) (Bytes nBytes)) -> getDataLe (RegisterBank vec)
     Nothing  ->
       error $
         "directedWbDecoding: list to vector conversion failed: "
