@@ -155,6 +155,8 @@ directEbs clk rst ena ebs = (nodeRequestReset, dcs)
 
   fst3 (x,_,_) = x
 
+  -- ebsOut = imap (\i x -> x (dats !! i)) ebs where dats = unbundle marshalNodes
+  -- ebsOut = imap (\i x -> (ebs !! i) x) dats where dats = unbundle marshalNodes
   ebsOut = zipWith ($) ebs (unbundle marshalNodes)
 
   -- output 'EbControlSt' to each node (given its status etc.)
