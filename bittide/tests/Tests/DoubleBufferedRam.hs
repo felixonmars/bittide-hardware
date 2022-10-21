@@ -681,10 +681,13 @@ wbStorageBehavior = property $ do
   go SNat = do
     content <- forAll $ genVec @_ @words genDefinedBitVector
     let
-      validAddr = (2*) <$> genIndex @_ @(2^32) (Range.constant 0 (natToNum @(2 * (words - 2))))
-      invalidAddr = Gen.choice
-        [ bitCoerce . (,1 :: BitVector 1) <$> genDefinedBitVector
-        , genIndex @_ @(2^32) (Range.constant (natToNum @(2 * words)) maxBound)
+      -- We need the input address to be larger than the memory space to also
+      -- test the behavior of out of range addresses.
+      validAddr = (2*) <$> genIndex @_ @(5 * words) (Range.constant 0 (natToNum @(2 * (words - 1))))
+      invalidAddr = Gen.choice @_ @(Index (5 * words))
+        [ replaceBit (0 :: Index 1) 1 <$>
+            genIndex (Range.constant minBound (pred maxBound))
+        , genIndex (Range.constant (natToNum @(4 * words)) maxBound)
         ]
 
     generatedInput <- forAll $ (\l -> Right RamNoOp : l <> [Right RamNoOp]) <$>
@@ -725,7 +728,7 @@ wbStorageBehavior = property $ do
 
   expectTransaction ramOp response = case ramOp of
     Right op -> ramOpToTransaction op response
-    Left  op-> Just (Error (ramOpToWb op))
+    Left  op -> Just (Error (ramOpToWb op))
 
 -- | Behavioral model for 'wbStorage'. It stores is contents as half-words in Little Endian.
 wbStorageBehaviorModel ::
