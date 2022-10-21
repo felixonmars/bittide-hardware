@@ -17,8 +17,8 @@ import Clash.Prelude
 
 import Data.Constraint
 import Data.Constraint.Nat.Extra
+import Data.Type.Equality ((:~:)(Refl))
 import Protocols.Wishbone
-import Data.Typeable
 
 -- | To be used when there are two options.
 data AorB = A | B deriving (Eq, Generic, BitPack, Show, NFDataX)
@@ -47,7 +47,7 @@ type NatRequiredBits n = CLog 2 (n + 1)
 type NatFitsInBits n bits = NatRequiredBits n <= bits
 
 -- | Constraints required to add padding to @a@.
-type Paddable a = (BitPack a, NFDataX a, Typeable a)
+type Paddable a = (BitPack a, NFDataX a)
 
 -- Located i x is a datatype that indicates that data x has a relation with Index i,
 -- example usage: write operation of type D to a blockRam with 'i' addresses can
