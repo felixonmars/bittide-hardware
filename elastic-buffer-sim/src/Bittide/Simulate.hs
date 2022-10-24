@@ -13,6 +13,7 @@ Provides a rudimentary simulation of elastic buffers.
 
 module Bittide.Simulate where
 
+import qualified Clash.Cores.Xilinx.DcFifo as Cores
 import Clash.Explicit.Prelude
 import Clash.Signal.Internal
 import Data.Bifunctor (first, second)
@@ -225,10 +226,38 @@ ebWrap rdClk _rdRst rdEna wrClk _wrRst wrEna =
   (readCount, isUnderflow) = unbundle rdOuts
   (writeCount, isOverflow) = unbundle wrOuts
 
-  (rdOuts, wrOuts) = elasticBuffer 128 rdClk wrClk rdEna wrEna
+  (rdOuts, wrOuts) = elasticBufferXilinx 128 rdClk wrClk rdEna wrEna
 
 type Underflow = Bool
 type Overflow = Bool
+
+
+elasticBufferXilinx ::
+  forall readDom writeDom.
+  (KnownDomain readDom, KnownDomain writeDom) =>
+  -- | Size of FIFO. To reflect our target platforms, this should be a power of two
+  -- where typical sizes would probably be: 16, 32, 64, 128.
+  ElasticBufferSize ->
+  Clock readDom ->
+  Clock writeDom ->
+  Signal readDom Bool ->
+  Signal writeDom Bool ->
+  (Signal readDom (DataCount, Underflow), Signal writeDom (DataCount, Overflow))
+elasticBufferXilinx _size clkRead clkWrite rdToggle wrToggle =
+  (bundle (fromIntegral <$> readCount, isUnderflow), bundle (fromIntegral <$> writeCount, isOverflow))
+ where
+  waitMidway :: Signal readDom (Unsigned 12) -> Signal readDom Bool
+  waitMidway = mealy clkRead resetGen enableGen go False
+   where
+    go True _ = (True, True)
+    go False i | i >= maxBound `div` 2 = (True, True)
+               | otherwise = (False, False)
+  block = waitMidway readCount
+  Cores.FifoOut{..} =
+    Cores.dcFifo ((Cores.defConfig @12) { Cores.dcUnderflow = True, Cores.dcOverflow = True }) clkWrite resetGen clkRead resetGen (go <$> wrToggle) (block .||. rdToggle)
+   where
+    go False = Nothing
+    go True = Just ()
 
 -- | Model FIFO. This is exposed as 'ebController'
 --
