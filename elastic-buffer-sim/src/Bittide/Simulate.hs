@@ -116,7 +116,6 @@ ebReadDom wrClk rdClk rdRst wrRst rdEna wrEna rdCtrl =
   bundle (readCount, isUnderflow, ebRdOver)
  where
   ebRdOver = dualFlipFlopSynchronizer wrClk rdClk rdRst rdEna False isOverflow
-  -- combinatorial loop here...
   FifoOut{..} = ebWrap rdClk rdRst rdToggle wrClk wrRst wrToggle
   wrToggle = dualFlipFlopSynchronizer rdClk wrClk wrRst wrEna True wrToggleRd
 
@@ -138,6 +137,29 @@ data FifoOut readDom writeDom =
 type EbRdDom = (DataCount, Underflow, Overflow)
 
 data NodeInternalSt n = Continue | ResetState (Vec n EbControlSt) deriving (Generic, NFDataX)
+
+ebReadOver ::
+  forall readDom writeDom.
+  (KnownDomain readDom, KnownDomain writeDom) =>
+  Clock writeDom ->
+  Clock readDom ->
+  Reset readDom ->
+  Enable readDom ->
+  Signal readDom Overflow
+ebReadOver wrClk rdClk rdRst rdEna =
+  ebRdOver
+ where
+  ebRdOver = dualFlipFlopSynchronizer wrClk rdClk rdRst rdEna False isOverflow
+  (_, isOverflow) = unbundle wrOuts
+  (_, wrOuts) = elasticBuffer 128 rdClk wrClk rdToggle (pure True)
+
+  rdToggle =
+    delay rdClk rdEna True $
+      mealy rdClk rdRst rdEna go () ebRdOver
+   where
+    go :: () -> Overflow -> ((), Bool)
+    go _ _ = ((), True)
+
 
 -- | Marshal all the elastic buffers of a node together.
 directEbs ::

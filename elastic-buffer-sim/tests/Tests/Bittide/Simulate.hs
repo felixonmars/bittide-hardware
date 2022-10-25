@@ -55,11 +55,10 @@ case_readDomTerminates =
 
 case_directEbsTerminates :: Assertion
 case_directEbsTerminates =
-  assertBool "doesn't <<loop>>" (outSample `deepseqX` True)
+  assertBool "doesn't <<loop>>" (outSample `deepseqX` True) -- TODO: deepseq?
  where
-  ebCtl = ebReadDom @Fast @Slow clockGen clockGen resetGen resetGen enableGen enableGen
-  (ebRst, ebDat :> Nil) = directEbs clockGen resetGen enableGen (ebCtl :> Nil)
-  outSample = sampleN 5 ebRst
+  ebCtl = ebReadOver @Fast @Slow clockGen clockGen resetGen enableGen
+  outSample = sampleN 5 ebCtl
 
 case_clockControlMaxBound :: Assertion
 case_clockControlMaxBound = do
