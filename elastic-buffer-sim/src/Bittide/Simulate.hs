@@ -9,23 +9,18 @@ Provides a rudimentary simulation of elastic buffers.
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns #-}
+
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Bittide.Simulate where
 
 import Clash.Prelude
 import Clash.Signal.Internal
 import GHC.Stack
-import Numeric.Natural
 
 import Bittide.Simulate.Ppm
 import Bittide.ClockControl
-
--- Number of type aliases for documentation purposes in various functions defined
--- down below.
-type StepSize = Natural
-type InitialPeriod = Natural
-type Offset = Integer
-type DynamicRange = Natural
 
 --
 -- TODO:
@@ -35,18 +30,11 @@ type DynamicRange = Natural
 tunableClockGen ::
   forall dom.
   (HasCallStack, KnownDomain dom) =>
-  -- | Period it takes for a clock frequency request to settle. This is not
-  -- modelled, but an error is thrown if a request is submitted more often than
-  -- this.
-  SettlePeriod ->
-  -- | Offset from the ideal period (encoded in the domain) of thiss clock. For
+  -- | Settings and properties of this clock board.
+  ClockConfig ->
+  -- | Offset from the ideal period (encoded in the domain) of this clock. For
   -- the Si5395/Si5391 oscillators, this value lies between ±100 ppm.
-  Offset ->
-  -- | The size of the clock frequency should "jump" on a speed change request.
-  StepSize ->
-  -- | When asserted, clock multiplier resets the outgoing clock to its original
-  -- frequency. TODO: Implement.
-  Reset dom ->
+  Ppm ->
   -- | Speed change request. After submitting 'SpeedUp'/'SpeedDown', caller
   -- shouldn't submit another request for 1 microsecond (i.e., the clock tuner
   -- effectively operates at 1 MHz).
@@ -55,34 +43,40 @@ tunableClockGen ::
   -- should be asserted for at least 100 ns and at a maximum rate of 1 MHz.
   --
   Signal dom SpeedChange ->
-  -- | Clock with a dynamic frequency. At the time of writing, Clash primitives
-  -- don't account for this yet, so be careful when using them. Note that dynamic
-  -- frequencies are only relevant for components handling multiple domains.
+  -- | Clock with a dynamic frequency. Note that dynamic frequencies are only
+  -- relevant for components handling multiple domains. Dynamic clocks are a
+  -- new, experimental feature in Clash 1.8.
   Clock dom
-tunableClockGen settlePeriod periodOffset stepSize _reset speedChange =
-  let period = snatToNum (clockPeriod @dom)
-      initPeriod = fromIntegral (period + periodOffset)
-      clockSignal = initPeriod :- go settlePeriod initPeriod speedChange in
+tunableClockGen ClockConfig{cccSettlePeriod, cccStepSize} offsetPpm speedChange =
   Clock SSymbol (Just clockSignal)
  where
+  basePeriod = Femtoseconds (1000 * snatToNum (clockPeriod @dom))
+  initPeriod = speedUpPeriod offsetPpm basePeriod
+  clockSignal = initPeriod :- go (Femtoseconds 0) initPeriod speedChange
+
   go ::
-    SettlePeriod ->
-    PeriodPs ->
+    Femtoseconds -> -- settle counter
+    Femtoseconds -> -- current period size
     Signal dom SpeedChange ->
-    Signal dom StepSize
+    Signal dom Femtoseconds
   go !settleCounter !period (sc :- scs) =
     let
       (newSettleCounter, newPeriod) = case sc of
         SpeedUp
-          | settleCounter >= settlePeriod -> (0, period - stepSize)
+          | settleCounter >= cccSettlePeriod ->
+              (Femtoseconds 0, speedUpPeriod cccStepSize period)
           | otherwise -> error "tunableClockGen: frequency change requested too often"
         SlowDown
-          | settleCounter >= settlePeriod -> (0, period + stepSize)
+          | settleCounter >= cccSettlePeriod ->
+              (Femtoseconds 0, slowDownPeriod cccStepSize period)
           | otherwise -> error "tunableClockGen: frequency change requested too often"
         NoChange ->
-          (settleCounter + period, period)
+          (fsAdd settleCounter period, period)
     in
       newPeriod :- go newSettleCounter newPeriod scs
+
+  fsAdd :: Femtoseconds -> Femtoseconds -> Femtoseconds
+  fsAdd (Femtoseconds fs0) (Femtoseconds fs1) = Femtoseconds (fs0 + fs1)
 
 -- | Determines how 'elasticBuffer' should respond to underflow/overflow.
 data OverflowMode
@@ -93,56 +87,40 @@ data OverflowMode
   | Error
 
 -- | Simple model of a FIFO that only models the interesting part for conversion:
--- data counts.
+-- data counts. Starts
 elasticBuffer ::
-  forall readDom writeDom.
-  (HasCallStack, KnownDomain readDom, KnownDomain writeDom) =>
+  forall n readDom writeDom.
+  (HasCallStack, KnownDomain readDom, KnownDomain writeDom, KnownNat n) =>
   -- | What behavior to pick on underflow/overflow
   OverflowMode ->
-  -- | Size of FIFO. To reflect our target platforms, this should be a power of two
-  -- where typical sizes would probably be: 16, 32, 64, 128.
-  ElasticBufferSize ->
   Clock readDom ->
   Clock writeDom ->
-  Signal readDom DataCount
-elasticBuffer mode size clkRead clkWrite
-  | Clock _ (Just readPeriods) <- clkRead
-  , Clock _ (Just writePeriods) <- clkWrite
-  = go 0 (targetDataCount size) readPeriods writePeriods
+  Signal readDom (DataCount n)
+elasticBuffer mode clkRead clkWrite =
+  go (clockTicks clkWrite clkRead) targetDataCount
  where
-  go !relativeTime !fillLevel rps wps@(writePeriod :- _) =
-    if relativeTime < toInteger writePeriod
-    then goRead relativeTime fillLevel rps wps
-    else goWrite relativeTime fillLevel rps wps
+  go (tick:ticks) !fillLevel =
+    case tick of
+      ClockA  -> goWrite ticks fillLevel
+      ClockB  -> goRead ticks fillLevel
+      ClockAB -> go (ClockB:ClockA:ticks) fillLevel
+  go [] _ =
+    error "elasticBuffer.go: `ticks` should have been an infinite list"
 
-  goWrite relativeTime fillLevel rps (writePeriod :- wps) =
-    go (relativeTime - toInteger writePeriod) newFillLevel rps wps
+  goWrite ticks fillLevel =
+    go ticks newFillLevel
    where
     newFillLevel
-      | fillLevel >= size = case mode of
+      | fillLevel >= targetDataCount = case mode of
           Saturate -> fillLevel
           Error -> error "elasticBuffer: overflow"
       | otherwise = fillLevel + 1
 
-  goRead relativeTime fillLevel (readPeriod :- rps) wps =
-    newFillLevel :- go (relativeTime + toInteger readPeriod) newFillLevel rps wps
+  goRead ticks fillLevel =
+    newFillLevel :- go ticks newFillLevel
    where
     newFillLevel
       | fillLevel <= 0 = case mode of
           Saturate -> 0
           Error -> error "elasticBuffer: underflow"
       | otherwise = fillLevel - 1
-
-elasticBuffer mode size (Clock ss Nothing) clock1 =
-  -- Convert read clock to a "dynamic" clock if it isn't one
-  let
-    period = snatToNum (clockPeriod @readDom)
-  in
-    elasticBuffer mode size (Clock ss (Just (pure period))) clock1
-
-elasticBuffer mode size clock0 (Clock ss Nothing) =
-  -- Convert write clock to a "dynamic" clock if it isn't one
-  let
-    period = snatToNum (clockPeriod @writeDom)
-  in
-    elasticBuffer mode size clock0 (Clock ss (Just (pure period)))

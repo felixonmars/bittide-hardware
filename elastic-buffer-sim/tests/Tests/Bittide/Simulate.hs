@@ -34,11 +34,10 @@ tests = testGroup "Simulate"
 fastPeriod :: PeriodPs
 fastPeriod = hzToPeriod 200e6
 
-clockConfig :: Ppm -> ClockControlConfig
-clockConfig clockUncertainty = ClockControlConfig
+clockConfig :: Ppm -> ClockConfig
+clockConfig clockUncertainty = ClockConfig
   { cccPessimisticPeriod = speedUpPeriod clockUncertainty fastPeriod
   , cccSettlePeriod      = fastPeriod * 200
-  , cccDynamicRange      = clockUncertainty * 2
   , cccStepSize          = 10
   , cccBufferSize        = 128
   }

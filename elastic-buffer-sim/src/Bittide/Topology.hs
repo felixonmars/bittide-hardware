@@ -44,46 +44,45 @@ import Bittide.Topology.TH
 -- | This samples @n@ steps, taking every @k@th datum, and plots clock speeds
 -- and elastic buffer occupancy
 plotEbs :: Int -> Int -> IO ()
-plotEbs = plotC12
+plotEbs = plotK2
 
-plotDiamond :: Int -> Int -> IO ()
-plotDiamond = $(plotEbsAPI ("diamond", diamond))
+-- plotDiamond :: Int -> Int -> IO ()
+-- plotDiamond = $(plotEbsAPI ("diamond", diamond))
 
-plotHypercube :: Int -> Int -> IO ()
-plotHypercube = $(plotEbsAPI ("hypercube3", hypercube 3))
+-- plotHypercube :: Int -> Int -> IO ()
+-- plotHypercube = $(plotEbsAPI ("hypercube3", hypercube 3))
 
-plotHypercube4 :: Int -> Int -> IO ()
-plotHypercube4 = $(plotEbsAPI ("hypercube4", hypercube 4))
+-- plotHypercube4 :: Int -> Int -> IO ()
+-- plotHypercube4 = $(plotEbsAPI ("hypercube4", hypercube 4))
 
-plotTorus34 :: Int -> Int -> IO ()
-plotTorus34 = $(plotEbsAPI ("torus34", torus2d 3 4))
+-- plotTorus34 :: Int -> Int -> IO ()
+-- plotTorus34 = $(plotEbsAPI ("torus34", torus2d 3 4))
 
 plotK2 :: Int -> Int -> IO ()
 plotK2 = $(plotEbsAPI ("complete2", complete 2))
 
-plotK3 :: Int -> Int -> IO ()
-plotK3 = $(plotEbsAPI ("complete3", complete 3))
+-- plotK3 :: Int -> Int -> IO ()
+-- plotK3 = $(plotEbsAPI ("complete3", complete 3))
 
-plotK6 :: Int -> Int -> IO ()
-plotK6 = $(plotEbsAPI ("complete6", complete 6))
+-- plotK6 :: Int -> Int -> IO ()
+-- plotK6 = $(plotEbsAPI ("complete6", complete 6))
 
-plotC12 :: Int -> Int -> IO ()
-plotC12 = $(plotEbsAPI ("cyclic12", cyclic 12))
+-- plotC12 :: Int -> Int -> IO ()
+-- plotC12 = $(plotEbsAPI ("cyclic12", cyclic 12))
 
-plotStar7 :: Int -> Int -> IO ()
-plotStar7 = $(plotEbsAPI ("star7", star 7))
+-- plotStar7 :: Int -> Int -> IO ()
+-- plotStar7 = $(plotEbsAPI ("star7", star 7))
 
-plotTree32 :: Int -> Int -> IO ()
-plotTree32 = $(plotEbsAPI ("tree32", tree 3 2))
+-- plotTree32 :: Int -> Int -> IO ()
+-- plotTree32 = $(plotEbsAPI ("tree32", tree 3 2))
 
-plotTree23 :: Int -> Int -> IO ()
-plotTree23 = $(plotEbsAPI ("tree23", tree 2 3))
+-- plotTree23 :: Int -> Int -> IO ()
+-- plotTree23 = $(plotEbsAPI ("tree23", tree 2 3))
 
 -- | This samples @n@ steps, taking every @k@th datum; the result can be fed to
 -- @script.py@
 dumpCsv :: Int -> Int -> IO ()
 dumpCsv m k = do
-  offs <- genOffsN n
   createDirectoryIfMissing True "_build"
   forM_ [0..n] $ \i ->
     let eb = g A.! i in
@@ -93,7 +92,7 @@ dumpCsv m k = do
   let dats =
           $(onN 6) ($(encodeDats 6) m)
         $ takeEveryN k
-        $ $(simNodesFromGraph defClockConfig (complete 6)) offs
+        $ $(simNodesFromGraph defClockConfig (complete 6)) (P.repeat _)
   zipWithM_ (\dat i ->
     BSL.appendFile ("_build/clocks" <> show i <> ".csv") dat) dats [(0::Int)..]
  where

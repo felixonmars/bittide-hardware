@@ -86,12 +86,27 @@ library
     Bittide.SharedTypes
     Bittide.Switch
     Bittide.Wishbone
+    Data.Bool.Extra
     Data.Constraint.Nat.Extra
 
 executable clash
   import: common-options
   main-is: bin/Clash.hs
   Build-Depends: clash-ghc, bittide
+
+test-suite doctests
+  type:             exitcode-stdio-1.0
+  default-language: Haskell2010
+  main-is:          doctests.hs
+  ghc-options:      -Wall -Wcompat -threaded
+  hs-source-dirs:   tests
+
+  build-depends:
+    base,
+    bittide,
+    doctest-parallel >= 0.2 && < 0.3,
+    filepath,
+    QuickCheck
 
 test-suite unittests
   import: common-options

@@ -7,31 +7,46 @@
 module Bittide.Simulate.Ppm where
 
 import Clash.Explicit.Prelude
-import Data.Ratio
-import Numeric.Natural
+import Clash.Signal.Internal (Femtoseconds (Femtoseconds), hzToFs, fsToHz)
 
-newtype Ppm = Ppm Natural
-  deriving newtype (Num)
+import Data.Int (Int64)
+import Data.Ratio
+import GHC.Stack (HasCallStack)
+import Numeric.Natural
+import System.Random (Random)
+
+newtype Ppm = Ppm Int64
+  deriving newtype (Num, Random)
   deriving Lift
-type PeriodPs = Natural
+
 type Hz = Ratio Natural
 
 -- PPM arithmetic on Hz
-diffHz :: Ppm -> Hz -> Hz
-diffHz (Ppm ppm) hz = hz / (1e6 / (ppm % 1))
+diffHz :: HasCallStack => Ppm -> Hz -> Hz
+diffHz (Ppm ppm) hz
+  | ppm < 0   = error $ "diffHz: ppm must be absolute, not" <> show ppm
+  | otherwise = hz / (1e6 / (fromIntegral ppm % 1))
 
-speedUpHz :: Ppm -> Hz -> Hz
+speedUpHz :: HasCallStack => Ppm -> Hz -> Hz
 speedUpHz ppm hz = hz + diffHz ppm hz
 
-slowDownHz :: Ppm -> Hz -> Hz
+slowDownHz :: HasCallStack => Ppm -> Hz -> Hz
 slowDownHz ppm hz = hz - diffHz ppm hz
 
 -- PPM arithmetic on periods
-diffPeriod :: Ppm -> PeriodPs -> PeriodPs
-diffPeriod ppm = hzToPeriod . diffHz ppm . periodToHz
+diffPeriod :: HasCallStack => Ppm -> Femtoseconds -> Femtoseconds
+diffPeriod (Ppm ppm) fs
+  | ppm < 0   = Femtoseconds (-absFs)
+  | otherwise = Femtoseconds absFs
+ where
+  Femtoseconds absFs = hzToFs (diffHz (Ppm (abs ppm)) (fsToHz fs))
 
-speedUpPeriod :: Ppm -> PeriodPs -> PeriodPs
-speedUpPeriod ppm = hzToPeriod . speedUpHz ppm . periodToHz
+speedUpPeriod :: HasCallStack => Ppm -> Femtoseconds -> Femtoseconds
+speedUpPeriod (Ppm ppm)
+  | ppm < 0 = slowDownPeriod (Ppm ppm)
+  | otherwise = hzToFs . speedUpHz (Ppm (abs ppm)) . fsToHz
 
-slowDownPeriod :: Ppm -> PeriodPs -> PeriodPs
-slowDownPeriod ppm = hzToPeriod . slowDownHz ppm . periodToHz
+slowDownPeriod :: HasCallStack => Ppm -> Femtoseconds -> Femtoseconds
+slowDownPeriod (Ppm ppm)
+  | ppm < 0 = speedUpPeriod (Ppm (abs ppm))
+  | otherwise = hzToFs . slowDownHz (Ppm ppm) . fsToHz

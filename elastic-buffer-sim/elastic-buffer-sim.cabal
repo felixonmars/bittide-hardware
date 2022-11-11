@@ -76,10 +76,12 @@ library
   build-depends:
     array,
     aeson,
+    bittide,
     bytestring,
     cassava,
-    containers,
     clash-cores,
+    constraints,
+    containers,
     directory,
     matplotlib,
     random,
@@ -90,6 +92,7 @@ library
     Bittide.ClockControl.Strategies.Callisto
     Bittide.Simulate
     Bittide.Simulate.Ppm
+    Bittide.Simulate.Time
     Bittide.Topology
     Bittide.Topology.Graph
     Bittide.Topology.TH

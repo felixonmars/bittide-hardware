@@ -14,6 +14,7 @@ where
 
 import Clash.Explicit.Prelude
 import Clash.Prelude (exposeClockResetEnable)
+import Data.Proxy
 
 import Bittide.ClockControl
 import Bittide.ClockControl.Strategies.Callisto
@@ -23,48 +24,53 @@ import Bittide.ClockControl.Strategies.Callisto
 --
 -- This is the canonical controller, and uses 'callisto' under the hood.
 callistoClockControl ::
-  forall n dom.
-  (KnownDomain dom, KnownNat n, 1 <= n) =>
+  forall n m dom.
+  ( KnownDomain dom
+  , KnownNat n
+  , KnownNat m
+  , 1 <= n
+  , 1 <= m
+  , n + m <= 32
+  ) =>
   Clock dom ->
   Reset dom ->
   Enable dom ->
   -- | Configuration for this component, see individual fields for more info.
-  ClockControlConfig ->
+  ClockConfig ->
   -- | Statistics provided by elastic buffers.
-  Vec n (Signal dom DataCount) ->
+  Vec n (Signal dom (DataCount m)) ->
   Signal dom SpeedChange
 callistoClockControl clk rst ena cfg =
   clockControl clk rst ena cfg (exposeClockResetEnable callisto)
 
-type ClockControlAlgorithm dom n a =
+type ClockControlAlgorithm dom n m a =
   Clock dom ->
   Reset dom ->
   Enable dom ->
   -- | Target data count. See 'targetDataCount'.
-  DataCount ->
+  DataCount m ->
   -- | Provide an update every /n/ cycles
-  Unsigned 32 ->
+  Unsigned 16 ->
   -- | Data counts from elastic buffers
-  Signal dom (Vec n DataCount) ->
+  Signal dom (Vec n (DataCount m)) ->
   -- | Speed change requested from clock multiplier
   Signal dom SpeedChange
 
 clockControl ::
-  forall n dom a.
-  (KnownDomain dom, KnownNat n, 1 <= n) =>
+  forall n m dom a.
+  (KnownDomain dom, KnownNat n, 1 <= n, KnownNat m) =>
   Clock dom ->
   Reset dom ->
   Enable dom ->
   -- | Configuration for this component, see individual fields for more info.
-  ClockControlConfig ->
+  ClockConfig ->
   -- | Clock control strategy
-  ClockControlAlgorithm dom n a ->
+  ClockControlAlgorithm dom n m a ->
   -- | Statistics provided by elastic buffers.
-  Vec n (Signal dom DataCount) ->
+  Vec n (Signal dom (DataCount m)) ->
   -- | Whether to adjust node clock frequency
   Signal dom SpeedChange
-clockControl clk rst ena ClockControlConfig{..} f =
-  f clk rst ena targetCount updateEveryNCycles . bundle
+clockControl clk rst ena cfg f =
+  f clk rst ena targetDataCount settleCycles . bundle
  where
-  targetCount = targetDataCount cccBufferSize
-  updateEveryNCycles = fromIntegral (cccSettlePeriod `div` cccPessimisticPeriod) + 1
+  settleCycles = pessimisticSettleCycles (Proxy @dom) cfg

@@ -4,6 +4,7 @@
 
 -- | This module contains template haskell functions which lay out circuits
 -- using parts from "Bittide.Simulate"
+{-# LANGUAGE NamedFieldPuns #-}
 module Bittide.Topology.TH
   ( cross
   , absTimes
@@ -27,9 +28,10 @@ import Data.Bifunctor (bimap)
 import Data.Csv (encode)
 import Data.Graph (Graph)
 import Graphics.Matplotlib (Matplotlib, (%), file, plot, xlabel, ylabel)
-import Language.Haskell.TH (Q, Body (..), Clause (..), Exp (..), Pat (..), Dec (..), Lit (..), Stmt (..), Type (..), newName)
+import Language.Haskell.TH
+  ( Q, Body (..), Clause (..), Exp (..), Pat (..), Dec (..), Lit (..), Stmt (..)
+  , Type (..), newName, TyLit (NumTyLit) )
 import Language.Haskell.TH.Syntax (lift)
-import Numeric.Natural (Natural)
 import System.Directory (createDirectoryIfMissing)
 import System.Random (randomRIO)
 
@@ -66,9 +68,6 @@ matplotWrite nm clockDats ebDats = do
       ("_build/elasticbuffers" ++ nm ++ ".pdf")
       (xlabel "Time (ps)" % foldPlots ebDats)
 
-genOffsN :: Int -> IO [Offset]
-genOffsN n = replicateM (n+1) genOffsets
-
 -- | 'Graph' with a name for
 type GraphAPI = (String, Graph)
 
@@ -90,7 +89,7 @@ plotEbsAPI (nm, g) = do
   pure $
     LamE [VarP m, VarP k]
       (DoE Nothing
-        [ BindS (VarP offs) (VarE 'genOffsN `AppE` nE)
+        [ BindS (VarP offs) (VarE 'genOffsN `AppE` VarE 'defClockConfig `AppE` nE)
         , LetS
             [ValD
               (VarP res)
@@ -359,14 +358,15 @@ compose e0 = AppE (AppE (VarE '(.)) e0)
 extractPeriods ::
   forall dom. Clash.KnownDomain dom =>
   Clash.Clock dom ->
-  Clash.Signal dom Natural
+  Clash.Signal dom Clash.Femtoseconds
 extractPeriods (Clash.Clock _ (Just s)) = s
-extractPeriods _ = pure (Clash.snatToNum (Clash.clockPeriod @dom))
+extractPeriods _ =
+  pure (Clash.Femtoseconds (1000 * Clash.snatToNum (Clash.clockPeriod @dom)))
 
 -- | Given a graph with \(n\) nodes, generate a function which takes a list of \(n\)
 -- offsets (divergence from spec) and returns a tuple of signals for each clock
 -- domain
-simNodesFromGraph :: ClockControlConfig -> Graph -> Q Exp
+simNodesFromGraph :: ClockConfig -> Graph -> Q Exp
 simNodesFromGraph ccc g = do
   offsets <- traverse (\i -> newName ("offsets" ++ show i)) indices
   clockNames <- traverse (\i -> newName ("clock" ++ show i)) indicesArr
@@ -383,7 +383,7 @@ simNodesFromGraph ccc g = do
 
     clkE i =
       AppE
-        (AppE (AppE (AppE (AppE tunableClockGenV settlePeriod) (VarE (offsets !! i))) step) resetGenV)
+        (AppE (AppE tunableClockGenV (VarE (offsets !! i))) step)
         (VarE (clockControlNames A.! i))
     clkD i = valD (VarP (clockNames A.! i)) (clkE i)
     clkSignalD i = valD (VarP (clockSignalNames A.! i)) (VarE 'extractPeriods `AppE` VarE (clockNames A.! i))
@@ -431,6 +431,8 @@ simNodesFromGraph ccc g = do
 
   valD p e = ValD p (NormalB e) []
 
+  ebSize = 12
+
   bundleV = VarE 'Clash.bundle
   consC = ConE 'Clash.Cons
   nilC = ConE 'Clash.Nil
@@ -439,24 +441,17 @@ simNodesFromGraph ccc g = do
   tunableClockGenV = VarE 'tunableClockGen
   resetGenV = VarE 'Clash.resetGen
   enableGenV = VarE 'Clash.enableGen
-  ebClkClk = ebV `AppE` errC `AppE` ebSize
+  ebClkClk = ebV `AppTypeE` LitT (NumTyLit ebSize) `AppE` errC
   callistoClockControlV = VarE 'callistoClockControl
   mkVecE = foldr (\x -> AppE (AppE consC x)) nilC
 
-  ebSize = LitE (IntegerL (toInteger (cccBufferSize ccc)))
-  step = LitE (IntegerL (cccStepSize ccc))
-  settlePeriod = LitE (IntegerL (toInteger (cccSettlePeriod ccc)))
+  Ppm stepSizeInt = cccStepSize ccc
+  step = LitE (IntegerL (toInteger stepSizeInt))
+
+genOffsN :: ClockConfig -> Int -> IO [Ppm]
+genOffsN cc n = replicateM (n+1) (genOffset cc)
 
 -- | Randomly generate a 'Offset', how much a real clock's period may differ
 -- from its spec.
-genOffsets :: IO Offset
-genOffsets =
-  (`subtract` toInteger specPeriod)
-    <$> randomRIO (toInteger minT, toInteger maxT)
- where
-  minT = speedUpPeriod specPpm specPeriod
-  maxT = slowDownPeriod specPpm specPeriod
-
--- | Clocks uncertainty is ±100 ppm
-specPpm :: Ppm
-specPpm = Ppm 100
+genOffset :: ClockConfig -> IO Ppm
+genOffset ClockConfig{cccDeviation} = randomRIO (-cccDeviation, cccDeviation)
