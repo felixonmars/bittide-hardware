@@ -47,3 +47,8 @@ leMaxRight = unsafeCoerce (Dict :: Dict ())
 -- | if (1 <= a) and (1 <= b) then (1 <= DivRU a b)
 oneLTdivRU :: forall a b . (1 <= a, 1 <= b) => Dict (1 <= DivRU a b)
 oneLTdivRU = unsafeCoerce (Dict :: Dict ())
+
+-- | Euclid's third axiom: /If equals be subtracted from equals, the remainders
+-- are equal/.
+euclid3 :: forall a b c . (a + b <= c) => Dict (a <= c - b)
+euclid3 = unsafeCoerce (Dict :: Dict ())

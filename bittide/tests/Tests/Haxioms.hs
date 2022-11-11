@@ -24,13 +24,14 @@ haxiomsGroup = testGroup "Haxioms"
   , testPropertyNamed "leMaxLeft holds" "prop_leMaxLeft" prop_leMaxLeft
   , testPropertyNamed "leMaxRight holds" "prop_leMaxRight" prop_leMaxRight
   , testPropertyNamed "divWithRemainer holds" "prop_divWithRemainer" prop_divWithRemainer
+  , testPropertyNamed "euclid3 holds" "prop_euclid3" prop_euclid3
   ]
 
--- | Given that naturals in this module are used in proofs, we don't bother
--- generating very large ones.
---
+-- | Generate a 'Natural' greater than or equal to /n/. Can generate 'Natural's
+-- up to /n+1000/. This should be enough, given that naturals in this module are
+-- used in proofs.
 genNatural :: Natural -> Gen Natural
-genNatural min_ = Gen.integral (Range.linear min_ 1000)
+genNatural min_ = Gen.integral (Range.linear min_ (1000 + min_))
 
 clog :: Natural -> Natural -> Natural
 clog (fromIntegral -> base) (fromIntegral -> value) =
@@ -133,3 +134,18 @@ prop_divWithRemainer = property $ do
   b <- forAll (genNatural 1)
   c <- forAll (Gen.integral (Range.linear 0 (b - 1)))
   ((a * b) + c) `div` b === a
+
+-- | Test whether the following equation holds:
+--
+--     a <= b - c
+--
+-- Given:
+--
+--     a + b <= c
+--
+prop_euclid3 :: Property
+prop_euclid3 = property $ do
+  a <- forAll (genNatural 0)
+  b <- forAll (genNatural 0)
+  c <- forAll (genNatural (a + b))
+  (a + b <= c) === (a <= c - b)
