@@ -4,6 +4,7 @@
 
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE MultiWayIf #-}
 
 import Clash.Prelude hiding (not, (&&))
 import Prelude as P hiding ((||))
@@ -31,6 +32,9 @@ import Protocols.Wishbone
 import System.Directory (removeFile)
 import System.Environment
 import System.IO (openTempFile)
+import Control.Monad (forM_)
+import Control.Monad (when)
+import Text.Printf (printf)
 
 emptyInput :: Input
 emptyInput =
@@ -42,19 +46,12 @@ emptyInput =
       dBusWbS2M = (emptyWishboneS2M @(BitVector 32)) {readData = 0}
     }
 
+emptyOutput :: Output
+emptyOutput =
+  Output {iBusWbM2S=emptyWishboneM2S, dBusWbM2S=emptyWishboneM2S}
+
 type Memory dom = (BitVector 32, Signal dom (WishboneM2S 32 4 (BitVector 32))
   -> Signal dom (WishboneS2M (BitVector 32)))
-
-
-
-makeDefined :: WishboneS2M (BitVector 32) -> WishboneS2M (BitVector 32)
-makeDefined wb = wb { readData = readData' }
-  where
-    readData' =
-      if hasUndefined (readData wb) then
-        0
-      else
-        readData wb
 
 cpu
   :: (HasCallStack, HiddenClockResetEnable dom)
@@ -70,7 +67,7 @@ cpu
      )
 cpu (iMemStart, iMem) (dMemStart, dMem) = (output, writes, iWb, dWb)
   where
-    output = vexRiscv (emptyInput :- input)
+    output = vexRiscv input
     dM2S = dBusWbM2S <$> output
     dWb = dS2M
     iWb = iMem (mapAddr (\x -> x - iMemStart) . unBusAddr . iBusWbM2S <$> output)
@@ -89,8 +86,8 @@ cpu (iMemStart, iMem) (dMemStart, dMem) = (output, writes, iWb, dWb)
             { timerInterrupt = low,
               externalInterrupt = low,
               softwareInterrupt = low,
-              iBusWbS2M = makeDefined iBus,
-              dBusWbS2M = makeDefined dBus
+              iBusWbS2M = iBus,
+              dBusWbS2M = dBus
             }
       )
         <$> iWb
@@ -251,14 +248,13 @@ main = do
 
   -- let dMem' = dMem -- `I.union` I.fromAscList (L.zip [fdtAddr ..] deviceTree)
 
-  let _all@(unbundle -> (_circuit, writes, _iBus, _dBus)) = withClockResetEnable @System clockGen (resetGenN (SNat @2)) enableGen $
+  let all@(unbundle -> (_circuit, writes, _iBus, _dBus)) = withClockResetEnable @System clockGen (resetGenN (SNat @2)) enableGen $
         bundle (cpu iMem dMem)
 
-  --
-  {-
-  let init = 725
+  -- {-
+  let init = 130
   let skipUninteresting = 0 -- 700
-  let takeInteresting = 100 + 700
+  let takeInteresting = 100
 
   let total = init + skipUninteresting + takeInteresting
 
@@ -332,6 +328,6 @@ main = do
 
   -- -}
 
-  performPrintsToStdout 0x70000000 (sample_lazy $ bitCoerce <$> writes)
+  -- performPrintsToStdout 0x70000000 (sample_lazy $ bitCoerce <$> writes)
 
   removeFiles

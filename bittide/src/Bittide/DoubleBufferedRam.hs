@@ -252,7 +252,8 @@ wbStorage' initContent wbIn = delayControls wbIn wbOut
     -- This workaround works by making sure there can be no two ACKs directly
     -- after another. That forces the CPU to wait at least one cycle and
     -- present/expect the right request/response.
-    delayedAck = register False (acknowledge <$> s2m0 .&&. (not <$> delayedAck))
+    delayedAck = -- register False (acknowledge <$> s2m0 .&&. (not <$> delayedAck))
+                    register False (acknowledge <$> s2m0)
     delayedErr = register False (err <$> s2m0)
     s2m1 = (\wb newAck newErr-> wb{acknowledge = newAck, err = newErr})
       <$> s2m0 <*> delayedAck <*> delayedErr

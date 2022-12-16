@@ -22,7 +22,9 @@ foreign import ccall unsafe "vexr_init" vexrInit :: IO (Ptr VexRiscv)
 
 foreign import ccall unsafe "vexr_shutdown" vexrShutdown :: Ptr VexRiscv -> IO ()
 
-foreign import ccall unsafe "vexr_step" vexrStep :: Ptr VexRiscv -> Ptr INPUT -> Ptr OUTPUT -> IO ()
+foreign import ccall unsafe "vexr_step_first" vexrStepFirst :: Ptr VexRiscv -> Ptr INPUT -> Ptr OUTPUT -> IO ()
+foreign import ccall unsafe "vexr_step_second" vexrStepSecond :: Ptr VexRiscv -> Ptr INPUT -> Ptr OUTPUT -> IO ()
+
 
 data INPUT = INPUT {
   reset :: Bit,

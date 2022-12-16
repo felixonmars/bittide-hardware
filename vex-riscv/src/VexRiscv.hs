@@ -73,28 +73,64 @@ outputFromFFI OUTPUT {..} =
           }
     }
 
+makeDefined :: WishboneS2M (BitVector 32) -> WishboneS2M (BitVector 32)
+makeDefined wb = wb { readData = readData' }
+  where
+    readData' =
+      if hasUndefined (readData wb) then
+        0
+      else
+        readData wb
+
 {-# NOINLINE vexRiscv #-}
 vexRiscv :: (HasCallStack, HiddenReset dom) => Signal dom Input -> Signal dom Output
 vexRiscv = unsafePerformIO $ do
-  (step, _) <- vexCPU
-  pure $ go step (unsafeFromReset hasReset)
+  (stepFirst, stepSecond, _) <- vexCPU
+  let
+    {-# NOINLINE stepFirst' #-}
+    stepFirst' reset input = unsafePerformIO $ do
+      -- putStrLn "step first"
+      stepFirst reset input
+    {-# NOINLINE stepSecond' #-}
+    stepSecond' reset input = unsafePerformIO $ do
+      -- putStrLn "step second"
+      stepSecond reset input
+  pure $ go stepFirst' stepSecond' (unsafeFromReset hasReset)
   where
     {-# NOINLINE go #-}
-    go step (rst :- rsts) (input :- inputs) = unsafePerformIO $ do
-      out <- step rst input
-      pure $ out :- go step rsts inputs
+    go stepFirst stepSecond (rst :- rsts) ~(input :- inputs) =
+      let !output = stepFirst rst (firstInput input)
+      in
+          output :-
+            ( stepSecond rst (secondInput input)
+            `seq` go stepFirst stepSecond rsts inputs )
 
+    firstInput i =
+      i { iBusWbS2M = makeDefined emptyWishboneS2M
+        , dBusWbS2M = makeDefined emptyWishboneS2M }
+    secondInput i@Input{..} =
+      i { iBusWbS2M = makeDefined iBusWbS2M
+        , dBusWbS2M = makeDefined dBusWbS2M }
+
+type StepFn = Bool -> Input -> IO Output
 
 -- | Return a function that performs an execution step and a function to free
 -- the internal CPU state
-vexCPU :: IO (Bool -> Input -> IO Output, IO ())
+vexCPU :: IO (StepFn, StepFn, IO ())
 vexCPU = do
   v <- vexrInit
   let
-    step reset input = alloca $ \inputFFI -> alloca $ \outputFFI -> do
+    stepFirst reset input = alloca $ \inputFFI -> alloca $ \outputFFI -> do
       poke inputFFI (inputToFFI reset input)
-      vexrStep v inputFFI outputFFI
+      vexrStepFirst v inputFFI outputFFI
       outVal <- peek outputFFI
       pure $ outputFromFFI outVal
+
+    stepSecond reset input = alloca $ \inputFFI -> alloca $ \outputFFI -> do
+      poke inputFFI (inputToFFI reset input)
+      vexrStepSecond v inputFFI outputFFI
+      outVal <- peek outputFFI
+      pure $ outputFromFFI outVal
+
     shutDown = vexrShutdown v
-  pure (step, shutDown)
+  pure (stepFirst, stepSecond, shutDown)

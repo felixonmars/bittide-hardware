@@ -53,15 +53,6 @@ emptyInput =
 type Memory dom = (BitVector 32, Signal dom (WishboneM2S 32 4 (BitVector 32))
   -> Signal dom (WishboneS2M (BitVector 32)))
 
-makeDefined :: WishboneS2M (BitVector 32) -> WishboneS2M (BitVector 32)
-makeDefined wb = wb { readData = readData' }
-  where
-    readData' =
-      if hasUndefined (readData wb) then
-        0
-      else
-        readData wb
-
 cpu
   :: (HasCallStack, HiddenClockResetEnable dom)
   => Memory dom
@@ -97,8 +88,8 @@ cpu (iMemStart, iMem) (dMemStart, dMem) = (output, writes, iWb, dWb)
             { timerInterrupt = low,
               externalInterrupt = low,
               softwareInterrupt = low,
-              iBusWbS2M = makeDefined iBus,
-              dBusWbS2M = makeDefined dBus
+              iBusWbS2M = iBus,
+              dBusWbS2M = dBus
             }
       )
         <$> iWb
