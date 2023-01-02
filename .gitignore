@@ -98,3 +98,10 @@ checks.json
 # Docker builds
 .github/docker/*.nix
 .github/docker/nix
+
+# verilog-ethernet
+*~
+*.lxt
+*.pyc
+*.vvp
+*.kate-swp
