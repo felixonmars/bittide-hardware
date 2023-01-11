@@ -44,16 +44,23 @@ singleMasterInterconnect ::
  Circuit
   (Wishbone dom 'Standard (BitSize (Index nSlaves) + addrBitsPerBus) a)
   (Vec nSlaves (Wishbone dom 'Standard addrBitsPerBus a))
-singleMasterInterconnect (fmap pack -> config) =
+singleMasterInterconnect config =
   Circuit go
  where
-  go (masterS, slavesS) =
-    fmap unbundle . unbundle $ route <$> masterS <*> bundle slavesS
+  go (masterS, slavesS) = unbundle <$> mealyB route Nothing (masterS, bundle slavesS)
+    --fmap unbundle . unbundle $ route <$> masterS <*> bundle slavesS
 
-  route master@(WishboneM2S{..}) slaves = (toMaster, toSlaves)
+  -- route :: Maybe (Index nSlaves) -> _ -> (Maybe (Index nSlaves), _)
+  route Nothing (WishboneM2S{..}, _) =
+    if busCycle && strobe
+    then (Just . (unpack @(Index nSlaves)). fst $ split addr, (emptyWishboneS2M, repeat emptyWishboneM2S))
+    else (Nothing, (emptyWishboneS2M, repeat emptyWishboneM2S))
+
+  route (Just storedAddr) (master@(WishboneM2S{..}), slaves) = (nextStored, (toMaster, toSlaves))
    where
-    oneHotSelected = fmap (==addrIndex) config
-    (addrIndex, newAddr) =
+    oneHotSelected = fmap (==storedAddr) config
+    nextStored = if acknowledge toMaster || err toMaster then Nothing else Just storedAddr
+    (_, newAddr) =
       split @_ @(BitSize (Index nSlaves)) @addrBitsPerBus addr
     toSlaves =
       (\newStrobe -> (updateM2SAddr newAddr master){strobe = strobe && newStrobe})
