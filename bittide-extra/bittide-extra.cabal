@@ -73,4 +73,5 @@ library
   import: common-options
   hs-source-dirs: src
   exposed-modules:
+    Bittide.Extra.DeviceId
     Bittide.Extra.Wishbone
