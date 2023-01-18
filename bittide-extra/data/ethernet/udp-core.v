@@ -60,8 +60,7 @@ module udp_core #
     output wire [7:0] gmii_txd,
     output wire gmii_tx_en,
     output wire gmii_tx_er,
-    output wire leds
-
+    output wire [7:0] leds
 );
 
 // AXI between MAC and Ethernet modules
@@ -212,7 +211,7 @@ assign tx_ip_hdr_valid = 0;
 assign tx_ip_dscp = 0;
 assign tx_ip_ecn = 0;
 assign tx_ip_length = 0;
-assign tx_ip_ttl = 0;
+assign tx_ip_ttl = 64;
 assign tx_ip_protocol = 0;
 assign tx_ip_source_ip = 0;
 assign tx_ip_dest_ip = 0;

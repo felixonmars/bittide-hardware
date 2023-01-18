@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import random
+import numpy
 
 fpgaIP = "192.168.1.133"
 fpgaPort = 1234
@@ -22,29 +23,24 @@ sock.bind(local_address)
 sock.settimeout(2)
 packets = 100000
 
-sending = True
-  # Thread for receiving messages
-def recv_thread():
-  cnt = 1
-  starttime = time.time()
-  while sending:
-    # Receive a message
+
+def reliable_send(data, addr):
+  noAck = True
+  while noAck:
+    sock.sendto(data, addr)
     try:
       data, addr = sock.recvfrom(1024)
-      print(data, addr)
+      noAck = False
     except Exception:
       pass
-    newTime = time.time()
-    cnt = cnt + 1
+  return (data, addr)
+  # Thread for receiving messages
 
-  # Start the sending and receiving threads
-recv_thread = threading.Thread(target=recv_thread)
-recv_thread.start()
+(_,fpgaAddress) = reliable_send(bytes(1), broadcastAddress)
 
-data = bytearray(random.getrandbits(8) for _ in range(16))
-while True:
-  sock.sendto(data, broadcastAddress)
-  time.sleep(1)
+def toWishbone(byteEnable : numpy.uint8, address : numpy.uint32, data : numpy.uint32):
+  return bytearray([bytes(byteEnable), bytes(address), bytes(data)])
 
-sending = False
-recv_thread.join()
+print("Found fpga at:", fpgaAddress)
+
+reliable_send(bytearray((255,0,0,0,0,255,255,255,69)), fpgaAddress)

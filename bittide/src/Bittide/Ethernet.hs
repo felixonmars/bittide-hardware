@@ -50,17 +50,16 @@ udpClient clk rst ena fpgaMac fpgaIp incomingUdp txAxisReady txHeaderReady =
     , fpgaPort = 1234
     }
 
-  go ClientState{..} (mac, ip, udpIn@UdpFrame{..}, axisOutReady, outgoingHeaderReady, AxiStreamS2M internalAxisS2M) =
+  go ClientState{..} (mac, ip, udpIn@UdpFrame{..}, axisOutReady, outgoingHeaderReady, AxiStreamS2M internalAxisReady) =
     (nextState, (udpOut, consumeIncomingHeader, consumeIncomingAxis, internalAxisM2S))
    where
-    consumeIncomingAxis = (internalAxisS2M && axisOutReady) || not doLoopback
-    consumeIncomingHeader = outgoingHeaderReady || not doLoopback
+    consumeIncomingAxis = (axisOutReady && internalAxisReady) || not portsMatch
+    consumeIncomingHeader = outgoingHeaderReady || not portsMatch
     udpOut
-      | doLoopback = (udpSetSource mac ip fpgaPort $ udpLoopback udpIn)
-        {headerValid = headerValid && doLoopback}
-      | otherwise = udpOutgoingIdle
+      | portsMatch = (udpSetSource mac ip fpgaPort $ (udpLoopback udpIn){ipHeader = (ipLoopback ipHeader){ipTtl = 255}})
+        {headerValid = headerValid && portsMatch}
+      | otherwise = udpOutgoingIdle{ipHeader = (ipLoopback ipHeader){ipTtl = 255}}
 
-    doLoopback = isBroadcast && portsMatch
 
     isBroadcast = slice d7 d0 (ipDestIp ipHeader) == maxBound
     portsMatch = udpSourcePort udpHeader == serverPort && udpDestPort udpHeader == fpgaPort
@@ -75,5 +74,7 @@ udpClient clk rst ena fpgaMac fpgaIp incomingUdp txAxisReady txHeaderReady =
       , serverPort = serverPort
       , fpgaPort = fpgaPort }
 
-    internalAxisM2S = axisPayload{axisUser = axisUser axisPayload && portsMatch, axisValid = axisValid axisPayload && portsMatch}
+    internalAxisM2S = axisPayload
+      { axisUser = axisUser axisPayload && portsMatch
+      , axisValid = axisValid axisPayload && portsMatch && axisOutReady && internalAxisReady && not isBroadcast}
 makeTopEntity 'udpClient

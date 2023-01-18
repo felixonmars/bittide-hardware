@@ -72,8 +72,8 @@ axisToWishbone axisM2S wbS2M = (axisS2M, wbM2S)
   go (axiToWbState0@AxiToWbState{..}, wbOp) (AxiStreamM2S{..}, WishboneS2M{..}) =
     ((axiToWbState2, wbOpNext), output)
    where
-    nextAxiByteType = case (axisLast, axisValid, wbValid,  axiByteType) of
-      (True , _    , _    , _          )      -> ByteEnables
+    nextAxiByteType = case (axisLast, axisValid, wbValid, axiByteType) of
+      (True , True    , _    , _          )      -> ByteEnables
       (_    , _    , True , ByteEnables)      -> ByteEnables
       (_    , False, _    , _          )      -> axiByteType
 
@@ -86,18 +86,20 @@ axisToWishbone axisM2S wbS2M = (axisS2M, wbM2S)
         | n == maxBound                       -> ByteEnables
         | otherwise                           -> WriteData (succ n)
 
-    wbLastByte = case (axisLast, axisValid, axiByteType) of
-      (True, True, WriteData n) -> n == maxBound
-      (True, True, Address n)   -> n == maxBound
-      _                         -> False
+    wbLastByte = case (axisValid, axiByteType, wbByteEnables == 0) of
+      (True, WriteData n, _)  -> n == maxBound
+      (True, Address n, True) -> n == maxBound
+      _                       -> False
 
+    wbTerminated = acknowledge || err || retry
     (wbOpNext, nextWbValid)
-      | isJust wbOp && not acknowledge = (wbOp, wbValid || wbLastByte)
-      | wbValid && (isNothing wbOp || acknowledge) = (Just $ (emptyWishboneM2S @addrWidth @(BitVector  wbWidth))
+      | isJust wbOp && not wbTerminated = (wbOp, wbValid || wbLastByte)
+      | wbValid && (isNothing wbOp || wbTerminated) = (Just $ (emptyWishboneM2S @addrWidth @(BitVector  wbWidth))
         { busCycle = True
         , strobe = True
         , busSelect = wbByteEnables
         , writeData = resize $ pack wbWriteData
+        , writeEnable = or $ False :> unpack wbByteEnables
         , addr = resize $ pack wbAddress}
         , False)
       | otherwise = (Nothing, wbValid || wbLastByte)
@@ -105,8 +107,8 @@ axisToWishbone axisM2S wbS2M = (axisS2M, wbM2S)
 
     axiToWbState1 = case (axiByteType, axisValid) of
       (ByteEnables, True) -> axiToWbState0{wbByteEnables = resize axisData}
-      (Address n  , True) -> axiToWbState0{wbAddress     = replace n axisData wbAddress}
-      (WriteData n, True) -> axiToWbState0{wbWriteData   = replace n axisData wbWriteData}
+      (Address n  , True) -> axiToWbState0{wbAddress     = replace n axisData (reverse wbAddress)}
+      (WriteData n, True) -> axiToWbState0{wbWriteData   = replace n axisData (reverse wbWriteData)}
       (_, False)          -> axiToWbState0
 
     axiToWbState2 = axiToWbState1{axiByteType = nextAxiByteType, wbValid = nextWbValid}
@@ -114,3 +116,5 @@ axisToWishbone axisM2S wbS2M = (axisS2M, wbM2S)
     output =
       ( AxiStreamS2M (not wbValid || axiByteType /= ByteEnables)
       , fromMaybe emptyWishboneM2S wbOp)
+
+{-# NOINLINE axisToWishbone #-}
