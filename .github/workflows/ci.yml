@@ -116,11 +116,14 @@ jobs:
 
       - name: HDL generation and synthesis
         run : |
-          .github/scripts/with_vivado.sh cabal run -- bittide-instances:shake ${{ matrix.target.top }}:${{ matrix.target.stage }}
+          .github/scripts/with_vivado.sh cabal run -- bittide-instances:shake ${{ matrix.target.top }}:${{ matrix.target.stage }} > synth_stdout.txt
+
 
       - name: Archive synthesis artifacts
         uses: actions/upload-artifact@v3
         with:
           name: _build
-          path: _build
+          path: |
+            build
+            synth_stdout.txt
           retention-days: 14
