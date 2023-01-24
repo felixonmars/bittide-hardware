@@ -8,8 +8,8 @@ type MacAddress = BitVector 48
 type IpAddress = (BitVector 8,BitVector 8,BitVector 8,BitVector 8)
 type Port = BitVector 16
 
-axisIdle :: KnownNat n => AxiStreamM2S n
-axisIdle = AxiStreamM2S
+axisIdle :: KnownNat n => ReducedAxiStreamM2S n
+axisIdle = ReducedAxiStreamM2S
   { axisData = deepErrorX "Axi stream idle data undefined"
   , axisValid = False
   , axisLast = False
@@ -65,7 +65,7 @@ data UdpFrame = UdpFrame
   , ethHeader ::  "ethHeader" ::: EthernetHeader
   , headerValid  :: "headerValid" :::  Bool
   , udpHeader ::  "udpHeader" ::: UdpHeader
-  , axisPayload ::  "axisPayload" ::: AxiStreamM2S 8
+  , axisPayload ::  "axisPayload" ::: ReducedAxiStreamM2S 8
   } deriving (Generic, NFDataX)
 
 udpOutgoingIdle :: UdpFrame

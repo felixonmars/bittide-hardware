@@ -4,7 +4,6 @@ module Bittide.Ethernet where
 import Bittide.Ethernet.Types
 import Clash.Annotations.TH (makeTopEntity)
 import Clash.Explicit.Prelude
-import Protocols.Wishbone
 import Bittide.DoubleBufferedRam
 import Bittide.Axi4
 import Clash.Prelude(withClockResetEnable)
@@ -50,12 +49,12 @@ udpClient clk rst ena fpgaMac fpgaIp incomingUdp txAxisReady txHeaderReady =
     , fpgaPort = 1234
     }
 
-  go ClientState{..} (mac, ip, udpIn@UdpFrame{..}, axisOutReady, outgoingHeaderReady, AxiStreamS2M internalAxisReady) =
-    (nextState, (udpOut, consumeIncomingHeader, consumeIncomingAxis, internalAxisM2S))
+  go ClientState{..} (mac, ip, udpIn@UdpFrame{..}, axisOutReady, outgoingHeaderReady, ReducedAxiStreamS2M internalAxisReady) =
+    (nextState, (udpOutGo, consumeIncomingHeader, consumeIncomingAxis, internalAxisM2S))
    where
     consumeIncomingAxis = (axisOutReady && internalAxisReady) || not portsMatch
     consumeIncomingHeader = outgoingHeaderReady || not portsMatch
-    udpOut
+    udpOutGo
       | portsMatch = (udpSetSource mac ip fpgaPort $ (udpLoopback udpIn){ipHeader = (ipLoopback ipHeader){ipTtl = 255}})
         {headerValid = headerValid && portsMatch}
       | otherwise = udpOutgoingIdle{ipHeader = (ipLoopback ipHeader){ipTtl = 255}}

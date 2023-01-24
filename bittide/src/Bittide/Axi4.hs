@@ -8,14 +8,16 @@ import Clash.Prelude
 import Protocols.Wishbone
 import Data.Maybe
 
-data AxiStreamM2S axiWidth = AxiStreamM2S
+data ReducedAxiStreamM2S axiWidth = ReducedAxiStreamM2S
   { axisData  :: "axisData" ::: BitVector axiWidth
   , axisValid :: "axisValid" ::: Bool
   , axisLast  :: "axisLast" ::: Bool
   , axisUser  :: "axisUser" ::: Bool
   } deriving (Generic, NFDataX)
 
-data AxiStreamS2M = AxiStreamS2M Bool
+
+-- TODO: Remove Reduced types and switch over to types in Protocols.Axi4.Stream
+data ReducedAxiStreamS2M = ReducedAxiStreamS2M Bool
   deriving (Generic, NFDataX)
 
 data AxiByteType axiWidth addrWidth wbWidth
@@ -49,9 +51,9 @@ type AxiWbAdapterState axiWidth addrWidth wbWidth =
 axisToWishbone ::
   forall dom axiWidth addrWidth wbWidth .
   (HiddenClockResetEnable dom, KnownNat addrWidth, KnownNat axiWidth, 1 <= axiWidth, KnownNat wbWidth) =>
-  Signal dom (AxiStreamM2S axiWidth) ->
+  Signal dom (ReducedAxiStreamM2S axiWidth) ->
   Signal dom (WishboneS2M (BitVector wbWidth)) ->
-  ( Signal dom AxiStreamS2M
+  ( Signal dom ReducedAxiStreamS2M
   , Signal dom (WishboneM2S addrWidth (DivRU wbWidth 8) (BitVector wbWidth))
   )
 axisToWishbone axisM2S wbS2M = (axisS2M, wbM2S)
@@ -65,11 +67,11 @@ axisToWishbone axisM2S wbS2M = (axisS2M, wbM2S)
     , Nothing)
   go ::
     AxiWbAdapterState axiWidth addrWidth wbWidth ->
-    (AxiStreamM2S axiWidth, WishboneS2M (BitVector wbWidth)) ->
+    (ReducedAxiStreamM2S axiWidth, WishboneS2M (BitVector wbWidth)) ->
     ( AxiWbAdapterState axiWidth addrWidth wbWidth
-    , (AxiStreamS2M, WishboneM2S addrWidth (DivRU wbWidth 8) (BitVector wbWidth)))
+    , (ReducedAxiStreamS2M, WishboneM2S addrWidth (DivRU wbWidth 8) (BitVector wbWidth)))
 
-  go (axiToWbState0@AxiToWbState{..}, wbOp) (AxiStreamM2S{..}, WishboneS2M{..}) =
+  go (axiToWbState0@AxiToWbState{..}, wbOp) (ReducedAxiStreamM2S{..}, WishboneS2M{..}) =
     ((axiToWbState2, wbOpNext), output)
    where
     nextAxiByteType = case (axisLast, axisValid, wbValid, axiByteType) of
@@ -114,7 +116,7 @@ axisToWishbone axisM2S wbS2M = (axisS2M, wbM2S)
     axiToWbState2 = axiToWbState1{axiByteType = nextAxiByteType, wbValid = nextWbValid}
 
     output =
-      ( AxiStreamS2M (not wbValid || axiByteType /= ByteEnables)
+      ( ReducedAxiStreamS2M (not wbValid || axiByteType /= ByteEnables)
       , fromMaybe emptyWishboneM2S wbOp)
 
 {-# NOINLINE axisToWishbone #-}
