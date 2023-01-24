@@ -2,11 +2,16 @@
 {-# OPTIONS_GHC -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# HLINT ignore "Use newtype instead of data" #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Bittide.Axi4 where
 import Clash.Prelude
 import Protocols.Wishbone
 import Data.Maybe
+import Protocols.Axi4.Stream
+import Bittide.SharedTypes
+import Clash.Sized.Internal.BitVector (popCountBV)
 
 data ReducedAxiStreamM2S axiWidth = ReducedAxiStreamM2S
   { axisData  :: "axisData" ::: BitVector axiWidth
@@ -120,3 +125,118 @@ axisToWishbone axisM2S wbS2M = (axisS2M, wbM2S)
       , fromMaybe emptyWishboneM2S wbOp)
 
 {-# NOINLINE axisToWishbone #-}
+
+type EndOfPacket = Bool
+type BufferFull = Bool
+
+data WbAxisRxBufferState fifoDepth nBytes = WbAxisRxBufferState
+  { readingFifo :: Bool
+  , packetLength :: Index (fifoDepth * nBytes + 1)
+  , writeCounter :: Index fifoDepth
+  , packetComplete :: Bool
+  , bufferFull :: Bool
+  } deriving (Generic, NFDataX)
+
+wbAxisRxBuffer ::
+  forall dom wbAddrW nBytes fifoDepth conf axiUserType .
+  ( HiddenClockResetEnable dom
+  , KnownNat wbAddrW, 2 <= wbAddrW
+  , KnownNat nBytes, 1 <= nBytes
+  , 1 <= fifoDepth
+  , 1 <= nBytes * fifoDepth
+  , DataWidth conf ~ nBytes) =>
+  SNat fifoDepth ->
+  "wbm2s" ::: Signal dom (WishboneM2S wbAddrW nBytes (Bytes nBytes)) ->
+  "axim2s" ::: Signal dom (Maybe (Axi4StreamM2S conf axiUserType)) ->
+  "clearinterrupts" ::: Signal dom (EndOfPacket, BufferFull) ->
+  "" :::
+  ( "" ::: Signal dom (WishboneS2M (Bytes nBytes))
+  , "" ::: Signal dom Axi4StreamS2M
+  , "" ::: Signal dom (EndOfPacket, BufferFull)
+  )
+wbAxisRxBuffer SNat wbM2S axisM2S statusClearSignal = (wbS2M, axisS2M, statusReg)
+ where
+  fifoOut =
+    blockRamU NoClearOnReset (SNat @fifoDepth)
+    (const $ errorX "wbAxisRxBuffer: reset function undefined")
+    bramAddr bramWrite
+  (wbS2M, axisS2M, bramAddr, bramWrite, statusReg) = mealyB go initState (wbM2S, axisM2S, fifoOut, statusClearSignal)
+  initState = WbAxisRxBufferState
+    { readingFifo = False
+    , packetLength = 0
+    , writeCounter = 0
+    , packetComplete = False
+    , bufferFull = False
+    }
+  go ::
+    WbAxisRxBufferState fifoDepth nBytes ->
+    ( WishboneM2S wbAddrW nBytes (Bytes nBytes)
+    , Maybe (Axi4StreamM2S conf axiUserType)
+    , Bytes nBytes, (EndOfPacket, BufferFull)
+    ) ->
+    ( WbAxisRxBufferState fifoDepth nBytes
+    , ( WishboneS2M (Bytes nBytes)
+      , Axi4StreamS2M, Index fifoDepth
+      , Maybe (Index fifoDepth, Bytes nBytes)
+      , (EndOfPacket, BufferFull)
+      )
+    )
+  go
+    WbAxisRxBufferState{..}
+    (WishboneM2S{..}, maybeAxisM2S, wbData, clearStatus)
+    = (newState, output)
+   where
+    masterActive = busCycle && strobe
+    (alignedAddress, alignment) = split @_ @(wbAddrW - 2) @2 addr
+
+    packetLengthAddress = maxBound - 1
+    statusAddress       = maxBound :: Index (fifoDepth + 2)
+    internalAddress = (bitCoerce $ resize alignedAddress) :: Index (fifoDepth + 2)
+
+    err = masterActive && (alignment /= 0 || alignedAddress > resize (pack statusAddress))
+
+    statusBV = pack (packetComplete, bufferFull)
+    wbHandshake = masterActive && not err
+
+    (readData, nextReadingFifo, wbAcknowledge)
+      | internalAddress == packetLengthAddress = (resize $ pack packetLength, False, wbHandshake)
+      | internalAddress == statusAddress       = (resize statusBV, False, wbHandshake)
+      | otherwise                              = (wbData, wbHandshake && not readingFifo, wbHandshake && readingFifo)
+
+    axisReady = not (packetComplete || bufferFull)
+    axisHandshake = axisReady && isJust maybeAxisM2S
+
+    output =
+      ( (emptyWishboneS2M @(Bytes nBytes)){readData, err, acknowledge = wbAcknowledge}
+      , Axi4StreamS2M axisReady
+      , resize internalAddress
+      , if axisHandshake then (writeCounter,) . pack . _tdata <$> maybeAxisM2S else Nothing
+      , (packetComplete, bufferFull)
+      )
+
+    -- Next state
+    (nextPacketComplete, nextBufferFull)
+      | wbAcknowledge && writeEnable && internalAddress == statusAddress
+        = unpack $ (\ a b -> a `xor` (a .&. b)) statusBV (resize writeData)
+      | axisHandshake = (packetComplete || maybe False _tlast maybeAxisM2S, bufferFull || writeCounter == maxBound)
+      | otherwise = unpack $ statusBV `xor` pack clearStatus
+
+    nextWriteCounter
+      | axisHandshake  = satSucc SatBound writeCounter
+      | packetComplete || bufferFull = 0
+      | otherwise      = writeCounter
+
+    bytesInStream = maybe (0 :: Index (nBytes + 1)) (leToPlus @1 @nBytes popCountBV . pack ._tkeep) maybeAxisM2S
+
+    nextPacketLength
+      | wbAcknowledge && writeEnable && internalAddress == packetLengthAddress = unpack $ resize writeData
+      | axisHandshake                                         = satAdd SatBound packetLength (bitCoerce $ resize bytesInStream)
+      | otherwise                                             = packetLength
+
+    newState = WbAxisRxBufferState
+      { readingFifo = nextReadingFifo
+      , packetLength = nextPacketLength
+      , writeCounter = nextWriteCounter
+      , packetComplete = nextPacketComplete --unpack nextStatus\
+      , bufferFull = nextBufferFull
+      }

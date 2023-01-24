@@ -153,6 +153,7 @@ test-suite unittests
   main-is: UnitTests.hs
   ghc-options: -threaded -with-rtsopts=-N
   other-modules:
+    Tests.Axi4
     Tests.Calendar
     Tests.ClockControl.Si539xSpi
     Tests.DoubleBufferedRam
