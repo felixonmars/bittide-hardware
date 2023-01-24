@@ -11,6 +11,7 @@ module Tests.Shared where
 import Clash.Prelude
 
 import Clash.Hedgehog.Sized.Unsigned
+import Clash.Signal.Internal
 
 import Data.Constraint (Dict(Dict))
 import Data.Constraint.Nat.Extra (divWithRemainder)
@@ -23,7 +24,6 @@ import Numeric.Natural
 
 import Bittide.Calendar
 import Bittide.SharedTypes (Bytes)
-
 import qualified Data.List as L
 import qualified GHC.TypeNats as TypeNats
 import qualified Hedgehog.Range as Range
@@ -231,3 +231,23 @@ wcre = withClockResetEnable clockGen resetGen enableGen
 -- | Make any @a@ into a non-repeating `ValidEntry` without repetition bits.
 nonRepeatingEntry :: a -> ValidEntry a 0
 nonRepeatingEntry a = ValidEntry{veEntry = a, veRepeat = 0}
+
+fromListWithControl :: forall dom a . (HiddenClockResetEnable dom, NFDataX a, Show a)  => [a] -> Signal dom a
+fromListWithControl [] = pure $ deepErrorX "fromListWithEnable: Empty list"
+fromListWithControl (listHead : listTail) = listToSignal (fromEnable hasEnable) (unsafeToHighPolarity hasReset) (listHead : listTail)
+ where
+  listToSignal :: Signal dom Bool -> Signal dom Bool -> [a] -> Signal dom a
+  listToSignal (ena :- enables) (rst :- resets) (x:xs) = forceX output :- listToSignal enables resets remaining
+   where
+    output
+      | rst       = listHead
+      | otherwise = x
+    remaining
+      | rst       = (listHead:listTail)
+      | ena       = xs
+      | otherwise = x:xs
+  listToSignal (_ :- enables) (rst :- resets) [] = forceX output :- listToSignal enables resets remaining
+   where
+    (output, remaining)
+      | rst       = (listHead, listTail)
+      | otherwise = (deepErrorX "fromListWithControl: Reached end of list", [])
