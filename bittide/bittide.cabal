@@ -81,6 +81,10 @@ library
     Cabal,
     cassava,
     clash-cores,
+    directory,
+    elf,
+    process,
+    template-haskell,
     array,
     bittide-extra,
     bytestring,
@@ -110,6 +114,9 @@ library
     Bittide.Link
     Bittide.Node
     Bittide.ProcessingElement
+    Bittide.ProcessingElement.DeviceTreeCompiler
+    Bittide.ProcessingElement.ReadElf
+    Bittide.ProcessingElement.Util
     Bittide.ScatterGather
     Bittide.SharedTypes
     Bittide.Switch
@@ -117,6 +124,8 @@ library
     Clash.Cores.Extra
     Clash.Sized.Extra
     Data.Constraint.Nat.Extra
+  other-modules:
+    Paths_bittide
 
 executable clash
   import: common-options
