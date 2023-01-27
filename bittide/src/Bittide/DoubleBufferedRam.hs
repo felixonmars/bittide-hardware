@@ -175,9 +175,9 @@ wbStorage' initContent wbIn = delayControls wbIn wbOut
     _ -> error $ "wbStorage': " <> show initContent <> " not supported."
 
   (readAddrA, readAddrB, writeEntryA, writeEntryB, byteSelectA, byteSelectB, wbOut) =
-    unbundle $ go <$> wbIn <*> readDataB <*> readDataA <*> romOut
+    unbundle $ go <$> wbIn <*> readDataA <*> readDataB <*> romOut
 
-  go WishboneM2S{..} rdB rdA romOut0 =
+  go WishboneM2S{..} (a, b) (c,d) romOut0 =
     ( addrA
     , addrB
     , writeEntryA0
@@ -204,38 +204,36 @@ wbStorage' initContent wbIn = delayControls wbIn wbOut
     acknowledge = masterActive && (not isReloadable || romDone) && addrLegal
     masterWriting = masterActive && writeEnable && not err
 
-    (bsHigh,bsLow) = split busSelect
-    (writeDataHigh, writeDataLow) = split writeData
+    (bsD, bsC, bsB, bsA) = unpack busSelect :: (Bool, Bool, Bool, Bool)
+    (writeDataLow, writeDataHigh) = ((wrA, wrB), (wrC, wrD))
+     where
+      (wrD, wrC, wrB, wrA) = unpack writeData :: (Byte, Byte, Byte, Byte)
 
     ((addrA, byteSelectA0, writeDataA), (addrB, byteSelectB0, writeDataB))
       | wordAligned =
-        ( (wbAddr, bsLow, writeDataLow)
-        , (wbAddr, bsHigh, writeDataHigh))
+        ( (wbAddr, pack (bsA, bsB), writeDataLow)
+        , (wbAddr, pack (bsC, bsD), writeDataHigh))
       | otherwise =
-        ( (satSucc SatBound wbAddr, bsHigh, writeDataHigh)
-        , (wbAddr, bsLow, writeDataLow))
+        ( (satSucc SatBound wbAddr, pack (bsC, bsD), writeDataHigh)
+        , (wbAddr, pack (bsA, bsB), writeDataLow))
 
     (romWrite, romDone) = romOut0
-    (romWriteB, romWriteA) = splitWrite romWrite
+    (romWriteA, romWriteB) = splitWrite romWrite :: (Maybe (Index depth, (Byte, Byte)), Maybe (Index depth, (Byte, Byte)))
     (writeEntryA0, writeEntryB0)
       | isReloadable && not romDone = (romWriteA, romWriteB)
       | masterWriting = (Just (addrA, writeDataA),Just (addrB, writeDataB))
       | otherwise = (Nothing,Nothing)
     readData
-      | wordAligned = rdB ++# rdA
-      | otherwise   = rdA ++# rdB
+      | wordAligned = pack (d, c, b, a)
+      | otherwise   = pack (b, a, d, c)
 
     (byteSelectA1, byteSelectB1)
       | isReloadable && not romDone = (maxBound,maxBound)
       | otherwise = (byteSelectA0, byteSelectB0)
 
-  splitWrite ::
-    KnownNat bits =>
-    Maybe (LocatedBits n (2*bits)) ->
-    (Maybe (LocatedBits n bits), Maybe (LocatedBits n bits))
   splitWrite (Just (i, a)) = (Just (i,upper), Just (i, lower))
    where
-    (upper,lower) = split a
+    (upper,lower) = bitCoerce a
   splitWrite Nothing = (Nothing, Nothing)
 
   -- | Delays the output controls to align them with the actual read / write timing.

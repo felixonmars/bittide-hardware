@@ -22,7 +22,7 @@ pub struct Initialiser<'a> {
 }
 
 /// Address to load the FDT from.
-pub const FDT_ADDR: *const u8 = 0x1000_0000 as *const u8;
+pub const FDT_ADDR: *const u8 = 0x4000_2EE8 as *const u8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComponentLoadError {

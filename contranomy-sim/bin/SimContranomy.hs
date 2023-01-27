@@ -44,6 +44,11 @@ main = do
       <> showHex k "")
       dMem deviceTreeMap
 
+  let startingAddr m = fst $ L.head $ I.toAscList m
+
+  putStrLn $ "Dmem " <> show (startingAddr dMem')
+  putStrLn $ "Imem " <> show (startingAddr iMem)
+
   -- Hook up to print-debugging at uts designated address
   hookPrint characterDeviceAddr $
     sample $

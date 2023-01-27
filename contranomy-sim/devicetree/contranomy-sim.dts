@@ -30,9 +30,9 @@
     };
   };
 
-  memory@80000000 {
+  memory@40000000 {
     device_type = "memory";
-    reg = <0x80000000 0x80000000>;
+    reg = <0x40000000 0x40000000>;
   };
 
   reserved-memory {
@@ -41,10 +41,10 @@
     ranges;
   };
 
-  character-device@70000000 {
+  character-device@80000000 {
     #address-cells = <1>;
     #size-cells = <1>;
-    reg = <0x70000000 0x00000001>;
+    reg = <0x80000000 0x00000001>;
   };
 
   scatter-unit {

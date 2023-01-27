@@ -25,6 +25,7 @@ import qualified Bittide.Instances.Calendar as Calendar
 import qualified Bittide.Instances.ClockControl as ClockControl
 import qualified Bittide.Instances.ElasticBuffer as ElasticBuffer
 import qualified Bittide.Instances.MVPs as MVPs
+import qualified Bittide.Instances.ProcessingElement as ProcessingElement
 import qualified Bittide.Instances.ScatterGather as ScatterGather
 import qualified Bittide.Instances.Si539xSpi as Si539xSpi
 import qualified Bittide.Instances.StabilityChecker as StabilityChecker
@@ -75,14 +76,15 @@ targets =
   , 'ElasticBuffer.elasticBuffer5
   , 'MVPs.clockControlDemo0
   , 'MVPs.clockControlDemo1
+  , 'ProcessingElement.contranomy
   , 'ScatterGather.gatherUnit1K
   , 'ScatterGather.gatherUnit1KReducedPins
   , 'ScatterGather.scatterUnit1K
   , 'ScatterGather.scatterUnit1KReducedPins
+  , 'Si539xSpi.callistoSpi
   , 'Si539xSpi.si5391Spi
   , 'StabilityChecker.stabilityChecker_3_1M
   , 'Synchronizer.safeDffSynchronizer
-  , 'Si539xSpi.callistoSpi
   ]
 
 shakeOpts :: FilePath -> ShakeOptions

@@ -110,6 +110,8 @@ library
     Bittide.ClockControl.StabilityChecker
     Bittide.DoubleBufferedRam
     Bittide.ElasticBuffer
+    Bittide.Ethernet
+    Bittide.Ethernet.Types
     Bittide.Link
     Bittide.Node
     Bittide.ProcessingElement
