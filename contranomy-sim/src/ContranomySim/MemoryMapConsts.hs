@@ -20,7 +20,7 @@ import           Clash.Prelude (Unsigned)
 import           Data.IntMap   (Key)
 
 fdtAddr :: Key
-fdtAddr = 0x1000_0000
+fdtAddr = 0x4000_2EE8
 
 characterDeviceAddr :: Unsigned 32
-characterDeviceAddr = 0x7000_0000
+characterDeviceAddr = 0x8000_0000
