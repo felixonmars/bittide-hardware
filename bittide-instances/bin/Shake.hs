@@ -25,6 +25,7 @@ import qualified Bittide.Instances.Calendar as Calendar
 import qualified Bittide.Instances.ClockControl as ClockControl
 import qualified Bittide.Instances.ElasticBuffer as ElasticBuffer
 import qualified Bittide.Instances.MVPs as MVPs
+import qualified Bittide.Instances.ProcessingElement as ProcessingElement
 import qualified Bittide.Instances.ScatterGather as ScatterGather
 import qualified Bittide.Instances.Si539xSpi as Si539xSpi
 import qualified Bittide.Instances.StabilityChecker as StabilityChecker
@@ -82,6 +83,7 @@ targets =
   , 'Si539xSpi.si5391Spi
   , 'StabilityChecker.stabilityChecker_3_1M
   , 'Synchronizer.safeDffSynchronizer
+  , 'ProcessingElement.contranomy
   ]
 
 shakeOpts :: FilePath -> ShakeOptions

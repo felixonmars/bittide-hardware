@@ -44,7 +44,7 @@
   character-device@80000000 {
     #address-cells = <1>;
     #size-cells = <1>;
-    reg = <80000000 0x00000001>;
+    reg = <0x80000000 0x00000001>;
   };
 
   scatter-unit {

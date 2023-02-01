@@ -67,6 +67,7 @@ common common-options
     base,
     bittide-extra,
     bittide,
+    contranomy,
     clash-lib,
     clash-prelude,
     clash-protocols,
@@ -97,6 +98,7 @@ library
     Bittide.Instances.ElasticBuffer
     Bittide.Instances.Hacks
     Bittide.Instances.MVPs
+    Bittide.Instances.ProcessingElement
     Bittide.Instances.ScatterGather
     Bittide.Instances.Si539xSpi
     Bittide.Instances.StabilityChecker
@@ -106,8 +108,6 @@ library
     Clash.Shake.Vivado
     Development.Shake.Extra
     Language.Haskell.TH.Extra
-  autogen-modules:
-    Paths_bittide_instances
   other-modules:
     Paths_bittide_instances
 
