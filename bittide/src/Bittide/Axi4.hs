@@ -137,6 +137,29 @@ data WbAxisRxBufferState fifoDepth nBytes = WbAxisRxBufferState
   , bufferFull :: Bool
   } deriving (Generic, NFDataX)
 
+-- axisUpscale ::
+--   (DataWidth confA ~ scaleFactor * DataWidth confB) =>
+--   Signal dom (Maybe (Axi4StreamM2S confA userType)) ->
+--   Signal dom Axi4StreamS2M ->
+--   (Signal dom Axi4StreamS2M, Signal dom (Maybe (Axi4StreamM2S confB userType)))
+-- axisUpscale = curry (mealyB go initState)
+--  where
+--   initState = _
+--   go (oldCounter, storedBytes) (smallM2S, bigS2M) = ((newCounter, nextStoredBytes), (smallS2M, bigM2S))
+--    where
+--     smallS2M = _
+--     bigM2S = _
+--     nBytesIn = _
+--     nBytesOut = _
+--     -- smallHandShake = smallReady && isJust smallM2S
+--     enoughBytes = newCounter == maxBound
+--     newCounter
+--       | enoughBytes = 0
+--       | otherwise   = satSucc SatWrap oldCounter
+
+--     intermediateBytes = storedBytes ++ _tdata smallM2S
+--     nextStoredBytes = dropI intermediateBytes
+
 wbAxisRxBuffer ::
   forall dom wbAddrW nBytes fifoDepth conf axiUserType .
   ( HiddenClockResetEnable dom
@@ -160,7 +183,8 @@ wbAxisRxBuffer SNat wbM2S axisM2S statusClearSignal = (wbS2M, axisS2M, statusReg
     blockRamU NoClearOnReset (SNat @fifoDepth)
     (const $ errorX "wbAxisRxBuffer: reset function undefined")
     bramAddr bramWrite
-  (wbS2M, axisS2M, bramAddr, bramWrite, statusReg) = mealyB go initState (wbM2S, axisM2S, fifoOut, statusClearSignal)
+  (wbS2M, axisS2M, bramAddr, bramWrite, statusReg) =
+    mealyB go initState (wbM2S, axisM2S, fifoOut, statusClearSignal)
   initState = WbAxisRxBufferState
     { readingFifo = False
     , packetLength = 0
@@ -237,6 +261,80 @@ wbAxisRxBuffer SNat wbM2S axisM2S statusClearSignal = (wbS2M, axisS2M, statusReg
       { readingFifo = nextReadingFifo
       , packetLength = nextPacketLength
       , writeCounter = nextWriteCounter
-      , packetComplete = nextPacketComplete --unpack nextStatus\
+      , packetComplete = nextPacketComplete
       , bufferFull = nextBufferFull
       }
+
+wbAxisTxBuffer ::
+  forall dom addrW nBytes fifoDepth conf .
+  ( HiddenClockResetEnable dom
+  , 1 <= fifoDepth
+  , DataWidth conf ~ nBytes
+  , 2 <= addrW
+  , KnownNat addrW
+  , KnownAxi4StreamConfig conf) =>
+  SNat fifoDepth ->
+  Signal dom (WishboneM2S addrW nBytes (Bytes nBytes)) ->
+  Signal dom Axi4StreamS2M ->
+  ( Signal dom (WishboneS2M (Bytes nBytes))
+  , Signal dom (Axi4StreamM2S conf Bool))
+wbAxisTxBuffer SNat wbM2S axisS2M = (wbS2M, axisM2S)
+ where
+  (wbS2M, axisM2S, bramWrite, readAddr) = mealyB go initState (wbM2S, axisS2M, bramOut)
+  initState = (0,0,False)
+  bramOut =
+    blockRamU NoClearOnReset (SNat @fifoDepth)
+    (const $ errorX "wbAxisRxBuffer: reset function undefined")
+    readAddr bramWrite
+  go (readCounter, wordCount, axisValid) (WishboneM2S{..}, Axi4StreamS2M{..}, (bramKeeps,bramData)) = (newState, output)
+   where
+    masterActive = busCycle && strobe
+    (alignedAddress, alignment) = split @_ @(addrW - 2) @2 addr
+    wordCounterAddress = maxBound :: Index (fifoDepth + 1)
+    err = masterActive && (alignment /= 0 || alignedAddress > resize (pack wordCounterAddress))
+    acknowledge = masterActive && not err
+    validWrite = acknowledge && writeEnable
+    internalAddress = (unpack $ resize alignedAddress) :: Index (fifoDepth + 1)
+
+    newState = (readCounterNext, wordCountNext, axisValidNext)
+    newWordCount = validWrite && internalAddress == wordCounterAddress
+    lastTransmit = axisHandshake && readCounter == wordCount
+
+    readCounterNext
+      | lastTransmit  = 0
+      | axisHandshake = satSucc SatError readCounter
+      | otherwise     = readCounter
+
+    wordCountNext
+      | newWordCount = unpack $ resize writeData
+      | lastTransmit = 0
+      | otherwise    = wordCount
+
+    writeOp
+      | validWrite && internalAddress < maxBound
+      = Just (resize @_ @_ @fifoDepth internalAddress, (busSelect, writeData))
+      | otherwise = Nothing
+
+    axisValidNext
+      | newWordCount = True
+      | lastTransmit = False
+      | otherwise    = axisValid
+
+    axisHandshake = axisValid && _tready
+    readData = resize $ pack wordCount
+    retry = False
+    stall = False
+
+    _tdata = reverse $ unpack bramData
+    _tkeep = unpack bramKeeps
+    _tstrb = repeat True
+    _tlast = axisHandshake && wordCount == 0
+    _tid = 0
+    _tdest = 0
+    _tuser = False
+    output =
+      ( WishboneS2M{acknowledge, err, readData,retry, stall}
+      , Axi4StreamM2S{_tdata, _tkeep, _tstrb, _tlast, _tid, _tdest, _tuser}
+      , writeOp
+      , if axisHandshake then readCounterNext else readCounter
+      )
