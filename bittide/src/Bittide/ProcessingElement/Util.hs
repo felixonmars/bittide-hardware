@@ -12,16 +12,13 @@ import System.Exit
 import Bittide.SharedTypes
 import Language.Haskell.TH
 import Clash.Explicit.BlockRam.File
-import Paths_bittide
 import Numeric (showHex)
 
--- | Given the name of an elf file in @../target/riscv32imc-unknown-none-elf/release/@
--- , the name of a device tree in @device-trees/@ and a starting address for the device tree.
--- Return a 3 tuple containing (initial program counter, instruction memory blob, data memory blob)
+-- | Given the path to an elf file, the path to a device tree and a starting address
+--  for the device tree. Return a 3 tuple containing:
+--  (initial program counter, instruction memory blob, data memory blob)
 memBlobsFromElf :: FilePath -> String -> I.Key -> Q Exp
-memBlobsFromElf elfName deviceTreeName fdtAddr = do
-  elfPath <- runIO $ getDataFileName ("../target/riscv32imc-unknown-none-elf/release/" <> elfName)
-  deviceTreePath <- runIO $ getDataFileName ("device-trees/" <> deviceTreeName <> ".dts")
+memBlobsFromElf elfPath deviceTreePath fdtAddr = do
   (pc, iMemIntMap, dMemIntMap) <- runIO (getBytesMems elfPath deviceTreePath fdtAddr)
   let
     iResult = intMapToMemBlob iMemIntMap
@@ -29,8 +26,8 @@ memBlobsFromElf elfName deviceTreeName fdtAddr = do
 
   [|(pc, $iResult, $dResult)|]
 
--- | Given the name of an elf file in @../target/riscv32imc-unknown-none-elf/release/@
--- , the name of a device tree in @device-trees/@ and a starting address for the device tree.
+-- | Given the path to an elf file, the path to a device tree and a starting address
+--  for the device tree. Return a 3 tuple containing:
 -- Return a 3 tuple containing (initial program counter, instruction memory blob, data memory blob)
 getBytesMems :: FilePath -> String -> I.Key -> IO (BitVector 32, I.IntMap Byte, I.IntMap Byte)
 getBytesMems elfPath deviceTreePath fdtAddr = do
@@ -42,7 +39,9 @@ getBytesMems elfPath deviceTreePath fdtAddr = do
   deviceTree <- readDeviceTree deviceTreePath
   let
     deviceTreeMap = I.fromAscList (L.zip [fdtAddr ..] deviceTree)
-    dMem1 = dMem0 `I.union` deviceTreeMap
+    dMem1 = I.unionWithKey (\k _ _ -> error $
+      "Bittide.ProcessingElement.Util: Overlapping element in data memory and device tree at address 0x"
+      <> showHex k "") dMem0 deviceTreeMap
 
   putStrLn $ "elf file: " <> elfPath <>
           "\ndevice tree: " <> deviceTreePath <>
@@ -51,9 +50,8 @@ getBytesMems elfPath deviceTreePath fdtAddr = do
 
   pure (entry, iMem, dMem1)
 
--- | Given the name of an elf file in @../target/riscv32imc-unknown-none-elf/release/@
--- , the name of a device tree in @device-trees/@ and a starting address for the device tree.
--- Return a 3 tuple containing (initial program counter, instruction memory blob, data memory blob)
+-- | Given an IntMap, return a 3 tuple containing:
+-- (starting address, size, memBlob)
 intMapToMemBlob :: I.IntMap Byte -> Q Exp
 intMapToMemBlob intMap = do
   let
@@ -108,4 +106,4 @@ readDeviceTree deviceTreePath = do
     let
       padding = L.replicate (4 - (BS.length deviceTreeRaw `mod` 4)) 0
 
-    pure $ (fmap pack . BS.unpack $ deviceTreeRaw <> BS.pack padding)
+    pure (fmap pack . BS.unpack $ deviceTreeRaw <> BS.pack padding)
