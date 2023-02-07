@@ -277,7 +277,7 @@ wbAxisTxBuffer ::
   Signal dom (WishboneM2S addrW nBytes (Bytes nBytes)) ->
   Signal dom Axi4StreamS2M ->
   ( Signal dom (WishboneS2M (Bytes nBytes))
-  , Signal dom (Axi4StreamM2S conf Bool))
+  , Signal dom (Maybe (Axi4StreamM2S conf Bool)))
 wbAxisTxBuffer SNat wbM2S axisS2M = (wbS2M, axisM2S)
  where
   (wbS2M, axisM2S, bramWrite, readAddr) = mealyB go initState (wbM2S, axisS2M, bramOut)
@@ -286,14 +286,14 @@ wbAxisTxBuffer SNat wbM2S axisS2M = (wbS2M, axisM2S)
     blockRamU NoClearOnReset (SNat @fifoDepth)
     (const $ errorX "wbAxisRxBuffer: reset function undefined")
     readAddr bramWrite
-  go (readCounter, wordCount, axisValid) (WishboneM2S{..}, Axi4StreamS2M{..}, (bramKeeps,bramData)) = (newState, output)
+  go s@(readCounter, wordCount, axisValid) (WishboneM2S{..}, Axi4StreamS2M{..}, (bramKeeps,bramData)) = (newState, output)
    where
     masterActive = busCycle && strobe
     (alignedAddress, alignment) = split @_ @(addrW - 2) @2 addr
     wordCounterAddress = maxBound :: Index (fifoDepth + 1)
     err = masterActive && (alignment /= 0 || alignedAddress > resize (pack wordCounterAddress))
-    acknowledge = masterActive && not err
-    validWrite = acknowledge && writeEnable
+    acknowledge = masterActive && not err && not (axisValid && writeEnable)
+    validWrite = acknowledge && writeEnable && (not axisValid || internalAddress < resize readCounter)
     internalAddress = (unpack $ resize alignedAddress) :: Index (fifoDepth + 1)
 
     newState = (readCounterNext, wordCountNext, axisValidNext)
@@ -302,7 +302,7 @@ wbAxisTxBuffer SNat wbM2S axisS2M = (wbS2M, axisM2S)
 
     readCounterNext
       | lastTransmit  = 0
-      | axisHandshake = satSucc SatError readCounter
+      | axisHandshake = satSucc SatBound readCounter
       | otherwise     = readCounter
 
     wordCountNext
@@ -326,7 +326,7 @@ wbAxisTxBuffer SNat wbM2S axisS2M = (wbS2M, axisM2S)
     stall = False
 
     _tdata = reverse $ unpack bramData
-    _tkeep = unpack bramKeeps
+    _tkeep = reverse $ unpack bramKeeps
     _tstrb = repeat True
     _tlast = axisHandshake && wordCount == 0
     _tid = 0
@@ -334,7 +334,7 @@ wbAxisTxBuffer SNat wbM2S axisS2M = (wbS2M, axisM2S)
     _tuser = False
     output =
       ( WishboneS2M{acknowledge, err, readData,retry, stall}
-      , Axi4StreamM2S{_tdata, _tkeep, _tstrb, _tlast, _tid, _tdest, _tuser}
+      , if axisValid then Just Axi4StreamM2S{_tdata, _tkeep, _tstrb, _tlast, _tid, _tdest, _tuser} else Nothing
       , writeOp
       , if axisHandshake then readCounterNext else readCounter
       )

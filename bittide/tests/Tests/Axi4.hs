@@ -5,6 +5,8 @@
 {-# OPTIONS_GHC -fconstraint-solver-iterations=0 #-}
 {-# HLINT ignore "Used otherwise as a pattern" #-}
 {-# HLINT ignore "Functor law" #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 module Tests.Axi4 where
 
 import Clash.Prelude
@@ -30,35 +32,112 @@ import Data.String
 axi4Group :: TestTree
 axi4Group = testGroup "Axi4Group"
   [ testPropertyNamed
-    "Wishbone accessible Axis buffer can be written to and read" "wbAxisBufferReadStreams"
-    wbAxisBufferReadStreams
+    "Wishbone accessible Axis receive buffer can be written to and read: wbAxisRxBufferReadStreams" "wbAxisRxBufferReadStreams"
+    wbAxisRxBufferReadStreams
+  , testPropertyNamed
+    "Wishbone accessible Axis transmit buffer can be written to and read" "wbAxisTxBufferWriteStreams"
+    wbAxisTxBufferWriteStreams
   ]
 
 type Packet = [Unsigned 8]
 
-wbAxisBufferReadStreams :: Property
-wbAxisBufferReadStreams = property $ do
+wbAxisTxBufferWriteStreams :: Property
+wbAxisTxBufferWriteStreams = property $ do
   fifoDepth <- forAll $ Gen.enum 1 8
-  bytesInWord <- forAll $ Gen.enum 1 8
+  busWidth <- forAll $ Gen.enum 1 8
+  nrOfPackets <- forAll $ Gen.enum 1 8
+  repeatingReadyList <- forAll $ Gen.filter or $ Gen.list (Range.linear 1 8) Gen.bool
+  packetLengths <- forAll $
+    Gen.list (Range.singleton nrOfPackets) $
+    Gen.enum 1 (busWidth * fifoDepth)
+  packets <- forAll $ traverse
+    (flip Gen.list (genUnsigned @_ @8 Range.constantBounded) . Range.singleton)
+    packetLengths
+  case
+    ( TN.someNatVal $ fromIntegral (fifoDepth - 1)
+    , TN.someNatVal $ fromIntegral (busWidth - 1)) of
+    ( SomeNat (succSNat . snatProxy -> _ :: SNat fifoDepth)
+     ,SomeNat (succSNat . snatProxy -> _ :: SNat busWidth)) -> do
+      let
+        wbOps = L.concat $ L.zipWith (packetsToWb @32 @busWidth fifoDepth) packetLengths packets
+        topEntity = bundle (axisM2S, axisS2M, simRunning)
+         where
+          nextWb =
+            (\WishboneM2S{strobe, busCycle}
+              WishboneS2M{acknowledge, err} ->
+                not (strobe && busCycle) || acknowledge || err)
+            <$> wbM2S <*> wbS2M
+          (wbS2M, axisM2S) = wcre $
+            wbAxisTxBuffer @System @32 @busWidth @fifoDepth @(BasicAxiConfig busWidth)
+            SNat wbM2S axisS2M
+          axisS2M = Axi4StreamS2M <$> fromList (cycle repeatingReadyList)
+          wbM2S = withClockResetEnable @System clockGen resetGen (toEnable nextWb)
+            $ fromListWithControl (unpack 0 : wbOps <> L.repeat (unpack 0))
+          simRunning = not <$> (isNothing <$> axisM2S .&&. wbInactive .&&. streamingStarted)
+          streamingStarted = wcre $ register False (streamingStarted .||. isJust <$> axisM2S)
+          wbInactive = (\WishboneM2S{..} -> not $ busCycle || strobe) <$> wbM2S
+        (axisM2SList, axisS2MList, _) = L.unzip3 . L.takeWhile (\(_,_,r) -> r)
+          $ sampleN (fifoDepth * nrOfPackets *  L.length repeatingReadyList) topEntity
+        retrievedPackets = catMaybes . L.concat $ L.zipWith f axisM2SList axisS2MList
+          where
+            f (Just Axi4StreamM2S{..}) (_tready -> True) =
+              toList ((\ a b -> if a then Just b else Nothing) <$> _tkeep <*> _tdata)
+            f _ _ = []
+      footnote . fromString $ "wbOps:" <> show wbOps
+      footnote . fromString $ "axisM2SList:" <> show axisM2SList
+      footnote . fromString $ "axisS2MList:" <> show axisS2MList
+      L.concat packets === retrievedPackets
+ where
+  packetsToWb :: forall addrW nBytes . (KnownNat addrW, KnownNat nBytes) =>Int -> Int -> Packet -> [WishboneM2S addrW nBytes (Bytes nBytes)]
+  packetsToWb fifoDepth packetLength allBytes = f 0 allBytes <>
+    [(emptyWishboneM2S @addrW @(Bytes nBytes))
+        { addr = 4 * fromIntegral fifoDepth
+        , strobe = True
+        , busCycle = True
+        , writeData = fromIntegral $ ((packetLength + busWidth - 1) `div` busWidth) - 1
+        , busSelect = maxBound
+        , writeEnable = True}]
+   where
+    busWidth = natToNum @nBytes
+    f i bytes =
+      (emptyWishboneM2S @addrW @(Bytes nBytes))
+        { addr = 4 * i
+        , strobe = True
+        , busCycle = True
+        , writeData
+        , busSelect
+        , writeEnable = True} : if otherBytes == [] then [] else f (succ i) otherBytes
+     where
+      (bytesToSend, otherBytes) = L.splitAt busWidth bytes
+      writeData = pack $ unsafeFromList (L.reverse $ L.take busWidth (bytesToSend <> L.repeat 0))
+      busSelect = pack . unsafeFromList $
+        L.replicate (busWidth - L.length bytesToSend) False <>
+        L.replicate (L.length bytesToSend) True
+
+
+wbAxisRxBufferReadStreams :: Property
+wbAxisRxBufferReadStreams = property $ do
+  fifoDepth <- forAll $ Gen.enum 1 8
+  busWidth <- forAll $ Gen.enum 1 8
   nrOfPackets <- forAll $ Gen.enum 0 8
   packetLengths <- forAll $
     Gen.list (Range.singleton nrOfPackets) $
-    Gen.enum 1 (bytesInWord * fifoDepth)
+    Gen.enum 1 (busWidth * fifoDepth)
 
   -- Generate list of packets [[Unsigned 8]]
   packets <- forAll $ traverse
     (flip Gen.list (genUnsigned @_ @8 Range.constantBounded) . Range.singleton)
     packetLengths
-  -- Introduce fifoDepth and bytesInWord on type level
-  case (TN.someNatVal $ fromIntegral (fifoDepth - 1), TN.someNatVal $ fromIntegral (bytesInWord - 1)) of
+  -- Introduce fifoDepth and busWidth on type level
+  case (TN.someNatVal $ fromIntegral (fifoDepth - 1), TN.someNatVal $ fromIntegral (busWidth - 1)) of
     ( SomeNat (succSNat . snatProxy -> depthSNat@SNat :: SNat fifoDepth)
-     ,SomeNat (succSNat . snatProxy -> bytesSNat :: SNat bytesInWord)) -> do
+     ,SomeNat (succSNat . snatProxy -> busWidthSNat :: SNat busWidth)) -> do
       let
         -- First element in the Axi4Stream is a Nothing, this will be present during and
         -- immediately after reset.
 
         -- Convert the packets to [Maybe (Axi4StreamM2S)]
-        axiStream = Nothing : L.concatMap (packetToAxiStream bytesSNat) packets
+        axiStream = Nothing : L.concatMap (packetToAxiStream busWidthSNat) packets
 
         -- For each packet, we first read the packet length at address fifoDepth
         -- (fifo elements can be read from address [0..(fifoDepth -1)])
@@ -68,22 +147,22 @@ wbAxisBufferReadStreams = property $ do
         -- We also start each packet reading attempt with an idle cycle to wait until
         -- a packet is ready.
         wbReadPacket pl = unpack 0 :
-          (wbRead @32 @bytesInWord <$> fifoDepth : [0..(pl `div` bytesInWord)]) <>
-          [wbWrite @32 @bytesInWord fifoDepth 0, wbWrite (fifoDepth + 1) maxBound]
+          (wbRead @32 @busWidth <$> fifoDepth : [0..(pl `div` busWidth)]) <>
+          [wbWrite @32 @busWidth fifoDepth 0, wbWrite (fifoDepth + 1) maxBound]
 
         -- Make wishbone operations for all packets.
         wbOps = PL.concatMap wbReadPacket packetLengths
         topEntity = bundle (wbM2S, wbS2M, axisM2S, axisS2M, wbStatus, simRunning)
          where
-          -- Run the simulation untill there are no more axi stream operations and
-          -- the fifo is empty, run for atleast 10 cycles.
+          -- Run the simulation until there are no more axi stream operations and
+          -- the fifo is empty, run for at least 10 cycles.
           simRunning =
             uncurry (||) <$> wbStatus
             .||. isJust <$> axisM2S
             .||. unsafeToHighPolarity (resetGenN d10)
 
           (wbS2M, axisS2M, wbStatus) = wcre $
-            wbAxisRxBuffer @System @32 @bytesInWord
+            wbAxisRxBuffer @System @32 @busWidth
             depthSNat wbM2S axisM2S (pure (False, False))
 
           -- Axi stream master
@@ -137,9 +216,9 @@ wbAxisBufferReadStreams = property $ do
     | bs /= [] = Just axis : packetToAxiStream w rest
     | otherwise  = []
    where
-    bytesInWord = natToNum @nBytes
-    (firstWords, rest) = L.splitAt bytesInWord bs
-    word = L.take bytesInWord (firstWords <> L.replicate (bytesInWord - 1) 0)
+    busWidth = natToNum @nBytes
+    (firstWords, rest) = L.splitAt busWidth bs
+    word = L.take busWidth (firstWords <> L.replicate (busWidth - 1) 0)
     axis = Axi4StreamM2S
       { _tdata = unsafeFromList word
       , _tkeep = unpack keeps
