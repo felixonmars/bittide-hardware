@@ -69,6 +69,7 @@ common common-options
     ghc-typelits-extra,
     ghc-typelits-knownnat,
     ghc-typelits-natnormalise,
+    interpolate,
 library
   import: common-options
   hs-source-dirs: src
