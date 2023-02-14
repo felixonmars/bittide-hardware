@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: 2023 Google LLC
+--
+-- SPDX-License-Identifier: Apache-2.0
 module Bittide.ProcessingElement.Util where
 
 import Clash.Prelude hiding (Exp)
