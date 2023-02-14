@@ -7,6 +7,7 @@ import Clash.Annotations.Primitive
 import Clash.Signal (withClockResetEnable)
 import Data.String.Interpolate      (i)
 import Data.String.Interpolate.Util (unindent)
+import Clash.Annotations.TH (makeTopEntity)
 
 data State
   = LOAD
@@ -19,11 +20,11 @@ type DOUT = BitVector 1
 type READ = Bool
 type SHIFT = Bool
 
-deviceId :: HiddenClockResetEnable dom => Signal dom (Maybe (BitVector 96))
+deviceId :: HiddenClockResetEnable dom => "maybeDNA" ::: Signal dom (Maybe (BitVector 96))
 deviceId = mux done (Just <$> dna) (pure Nothing)
  where
-  (read, shift, dna, done) = unbundle $ dnaControl hasClock hasReset hasEnable dout
-  dout = dnaPorte hasClock dout read shift
+  (rd, sh, dna, done) = dnaControl hasClock hasReset hasEnable dout
+  dout = dnaPorte hasClock dout rd sh
 
 -- | State machine to extract the DNA from Kintex Ultrascale FPGAs.
 -- To be connected to the Device DNA Access Port @DNA_PORTE2@
@@ -44,14 +45,15 @@ dnaControl ::
   "rst" ::: Reset dom ->
   "ena" ::: Enable dom ->
   "dout" ::: Signal dom DOUT ->
-  "" ::: Signal dom
-  ( "read" ::: READ
-  , "shift" ::: SHIFT
-  , "dna" ::: BitVector 96
-  , "done" ::: Bool)
+  "" :::
+  ( "read" ::: Signal dom READ
+  , "shift" ::: Signal dom SHIFT
+  , "dna" ::: Signal dom (BitVector 96)
+  , "done" ::: Signal dom  Bool)
 
-dnaControl clk rst ena = mealy clk rst ena go (LOAD, 0)
+dnaControl clk rst ena dout = (rd .&&. fromEnable ena, sh .&&. fromEnable ena, dna, done)
  where
+  (rd, sh, dna, done) = unbundle $ mealy clk rst ena go (LOAD, 0) dout
   go :: (State, BitVector 96) -> DOUT -> ((State, BitVector 96), (READ, SHIFT, BitVector 96, Bool))
   go (state,reg) input = (newState, (r, s, reg, dnaDetected))
    where
@@ -68,7 +70,6 @@ dnaControl clk rst ena = mealy clk rst ena go (LOAD, 0)
   BlackBox:
     name: Bittide.Extra.DeviceId.dnaPorte
     kind: Declaration
-    outputUsage: NonBlocking
     type: |-
       dnaPorte ::
         KnownDomain dom =>    -- ARG[0]
@@ -120,5 +121,10 @@ dnaPorte clk din read shift = resize <$> regOut
 {-# NOINLINE dnaPorte #-}
 {-# ANN dnaPorte hasBlackBox #-}
 
-topEntity :: Clock System -> Reset System -> Signal System (Maybe (BitVector 96))
-topEntity  clk rst = withClockResetEnable clk rst enableGen $ deviceId @System
+deviceIdSystem ::
+  "clk" ::: Clock System ->
+  "rst" ::: Reset System ->
+  "maybeDNA" ::: Signal System (Maybe (BitVector 96))
+deviceIdSystem  clk rst = withClockResetEnable clk rst enableGen $ deviceId @System
+
+makeTopEntity 'deviceIdSystem
