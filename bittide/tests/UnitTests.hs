@@ -24,7 +24,7 @@ import Tests.Wishbone
 tests :: TestTree
 tests = testGroup "Unittests"
   [ axi4Group
-  ,  calGroup
+  , calGroup
   , ebGroup
   , haxiomsGroup
   , linkGroup
