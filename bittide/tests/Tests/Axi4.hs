@@ -1,36 +1,42 @@
 -- SPDX-FileCopyrightText: 2023 Google LLC
 --
 -- SPDX-License-Identifier: Apache-2.0
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
+
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fconstraint-solver-iterations=0 #-}
-{-# HLINT ignore "Used otherwise as a pattern" #-}
+
 {-# HLINT ignore "Functor law" #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# HLINT ignore "Used otherwise as a pattern" #-}
+
 module Tests.Axi4 where
 
 import Clash.Prelude
-import Bittide.Axi4
 
 import Clash.Hedgehog.Sized.Unsigned
-import Clash.Sized.Vector(unsafeFromList)
 import Clash.Hedgehog.Sized.Vector (genVec)
+import Clash.Sized.Vector(unsafeFromList)
+import Data.Maybe
+import Data.String
+import Hedgehog
+import Protocols.Axi4.Stream
+import Protocols.Wishbone
 import Test.Tasty
 import Test.Tasty.Hedgehog
-import Hedgehog
+
+import Bittide.Axi4
+import Bittide.Extra.Maybe
+import Bittide.SharedTypes
+import Tests.Shared
+
+import qualified Data.List as L
+import qualified GHC.TypeNats as TN
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Tests.Shared
-import Protocols.Axi4.Stream
-import Data.Maybe
-import qualified GHC.TypeNats as TN
-import qualified Data.List as L
-import Protocols.Wishbone
-import Bittide.SharedTypes
-import Data.String
 
 axi4Group :: TestTree
 axi4Group = testGroup "Axi4Group"
@@ -43,7 +49,7 @@ axi4Group = testGroup "Axi4Group"
   ]
 
 type Packet = [Unsigned 8]
-type Axi4TestConfig dw id dest= 'Axi4StreamConfig dw id dest
+type BasicAxiConfig nBytes = 'Axi4StreamConfig nBytes 0 0
 
 genAxisM2S :: KnownAxi4StreamConfig conf => Gen userType -> Gen (Axi4StreamM2S conf userType)
 genAxisM2S genUser = do
@@ -57,6 +63,8 @@ genAxisM2S genUser = do
 
   pure $ Axi4StreamM2S{..}
 
+-- | Generate a `axisToByteStream` component with variable input bus width and test
+-- if a stream of multiple generated `Packet`s can be routed through it without being changed.
 axisToByteStreamUnchangedPackets :: Property
 axisToByteStreamUnchangedPackets = property $ do
   busWidth <- forAll $ Gen.enum 1 8
@@ -89,7 +97,9 @@ axisToByteStreamUnchangedPackets = property $ do
             $ fromListWithControl (axiStream <> L.repeat Nothing)
           -- Axi Stream backpressure by disabling fromListWithControl
           nextAxi = axisS2MSmall .==. pure (Axi4StreamS2M True)
-        (axisM2SSmall, axisS2MSmall,axisM2SBig, axisS2MBig, _) = L.unzip5 $ L.takeWhile (\(_,_,_,_,r) -> r) $ sampleN 2000 topEntity
+        maxSimDuration = 10 + 10*sum packetLengths * L.length repeatingReadyList
+        (axisM2SSmall, axisS2MSmall,axisM2SBig, axisS2MBig, _) =
+          L.unzip5 $ L.takeWhile (\(_,_,_,_,r) -> r) $ sampleN maxSimDuration topEntity
         retrievedPackets = axis4ToPackets axisM2SBig axisS2MBig
       footnote . fromString $ "axisM2SSmall:" <> show axisM2SSmall
       footnote . fromString $ "axisS2MSmall:" <> show axisS2MSmall
@@ -98,6 +108,8 @@ axisToByteStreamUnchangedPackets = property $ do
       L.concat packets  === retrievedPackets
 
 
+-- | Generate a `axisFromByteStream` component with variable output bus width and test
+-- if a stream of multiple generated `Packet`s can be routed through it without being changed.
 axisFromByteStreamUnchangedPackets :: Property
 axisFromByteStreamUnchangedPackets = property $ do
   busWidth <- forAll $ Gen.enum 1 8
@@ -130,23 +142,31 @@ axisFromByteStreamUnchangedPackets = property $ do
             $ fromListWithControl (axiStream <> L.repeat Nothing)
           -- Axi Stream backpressure by disabling fromListWithControl
           nextAxi = axisS2MSmall .==. pure (Axi4StreamS2M True)
-        (axisM2S, axisS2M, _) = L.unzip3 $ L.takeWhile (\(_,_,r) -> r) $ sampleN 2000 topEntity
+        maxSimDuration = 10 + 10*sum packetLengths * L.length repeatingReadyList
+        (axisM2S, axisS2M, _) = L.unzip3 $ L.takeWhile (\(_,_,r) -> r) $ sampleN maxSimDuration topEntity
         retrievedPackets = axis4ToPackets axisM2S axisS2M
       L.concat packets  === retrievedPackets
 
-axis4ToPackets :: KnownNat (DataWidth conf) =>
+
+-- | Extract a Packet by observing an Axi4 Stream.
+axis4ToPackets ::
+  KnownNat (DataWidth conf) =>
   [Maybe (Axi4StreamM2S conf userType)] ->
   [Axi4StreamS2M] ->
-  [Unsigned 8]
+  Packet
 axis4ToPackets axisM2S axisS2M = catMaybes . L.concat $ L.zipWith f axisM2S axisS2M
  where
-  f (Just Axi4StreamM2S{..}) (_tready -> True) =
-    toList ((\ a b -> if a then Just b else Nothing) <$> _tkeep <*> _tdata)
+  f (Just Axi4StreamM2S{..}) (_tready -> True) = toList (orNothing <$> _tkeep <*> _tdata)
   f _ _ = []
+
+-- | Convert a given `Packet` to a list of Wishbone master operations that write
+-- the packet to the slave interface as a contiguous blob of memory with the bytes from
+-- the packet arranged in big-endian format. The last operation writes the size
+-- of the packet in words to the provided `packetSizeAddress`.
 packetsToWb :: forall addrW nBytes . (KnownNat addrW, KnownNat nBytes) => Int -> Int -> Packet -> [WishboneM2S addrW nBytes (Bytes nBytes)]
-packetsToWb fifoDepth packetLength allBytes = f 0 allBytes <>
+packetsToWb packetSizeAddress packetLength allBytes = f 0 allBytes <>
   [(emptyWishboneM2S @addrW @(Bytes nBytes))
-      { addr = 4 * fromIntegral fifoDepth
+      { addr = 4 * fromIntegral packetSizeAddress
       , strobe = True
       , busCycle = True
       , writeData = fromIntegral $ ((packetLength + busWidth - 1) `div` busWidth) - 1
@@ -169,7 +189,7 @@ packetsToWb fifoDepth packetLength allBytes = f 0 allBytes <>
       L.replicate (busWidth - L.length bytesToSend) False <>
       L.replicate (L.length bytesToSend) True
 
--- Transform a Packet into a list of Axi Stream operations.
+-- Transform a `Packet` into a list of Axi Stream operations.
 packetToAxiStream ::
   forall nBytes . SNat nBytes -> Packet -> [Maybe (Axi4StreamM2S (BasicAxiConfig nBytes) ())]
 packetToAxiStream w@SNat !bs
@@ -191,22 +211,32 @@ packetToAxiStream w@SNat !bs
   keeps = unsafeFromList $ L.replicate (L.length bs) True <> L.replicate (busWidth - L.length bs) False
 
 -- Write a value with Wishbone to a 4 byte aligned address.
-wbWrite:: forall addrW nBytes . (KnownNat addrW, KnownNat nBytes) => Int -> Bytes nBytes -> WishboneM2S addrW nBytes (Bytes nBytes)
-wbWrite a d = (emptyWishboneM2S @addrW @(Bytes nBytes))
-          { busCycle  = True
-          , strobe    = True
-          , addr      = resize . pack $ a * 4
-          , writeEnable = True
-          , busSelect = maxBound
-          , writeData = d
-          }
+wbWrite::
+  forall addrW nBytes .
+  (KnownNat addrW, KnownNat nBytes) =>
+  Int ->
+  Bytes nBytes ->
+  WishboneM2S addrW nBytes (Bytes nBytes)
+wbWrite a d =
+  (emptyWishboneM2S @addrW @(Bytes nBytes))
+  { busCycle    = True
+  , strobe      = True
+  , addr        = resize . pack $ a * 4
+  , writeEnable = True
+  , busSelect   = maxBound
+  , writeData   = d
+  }
 
 -- Read a value from a 4 byte aligned address.
-wbRead:: forall addrW nBytes . (KnownNat addrW, KnownNat nBytes) => Int -> WishboneM2S addrW nBytes (Bytes nBytes)
-wbRead a = (emptyWishboneM2S @addrW @(Bytes nBytes))
-          { busCycle  = True
-          , strobe    = True
-          , addr      = resize . pack $ a * 4
-          , busSelect = minBound
-          }
-type BasicAxiConfig nBytes = 'Axi4StreamConfig nBytes 0 0
+wbRead::
+  forall addrW nBytes .
+  (KnownNat addrW, KnownNat nBytes) =>
+  Int ->
+  WishboneM2S addrW nBytes (Bytes nBytes)
+wbRead a =
+  (emptyWishboneM2S @addrW @(Bytes nBytes))
+  { busCycle  = True
+  , strobe    = True
+  , addr      = resize . pack $ a * 4
+  , busSelect = minBound
+  }

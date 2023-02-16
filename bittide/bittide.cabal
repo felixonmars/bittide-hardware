@@ -158,6 +158,7 @@ test-suite unittests
   build-depends:
     base,
     bittide,
+    bittide-extra,
     clash-cores,
     clash-lib,
     clash-prelude-hedgehog >= 1.6 && < 1.8,

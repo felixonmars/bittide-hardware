@@ -74,3 +74,4 @@ library
   hs-source-dirs: src
   exposed-modules:
     Bittide.Extra.Wishbone
+    Bittide.Extra.Maybe

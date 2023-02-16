@@ -1,17 +1,20 @@
 -- SPDX-FileCopyrightText: 2023 Google LLC
 --
 -- SPDX-License-Identifier: Apache-2.0
-{-# OPTIONS_GHC -fconstraint-solver-iterations=10 #-}
+
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleContexts #-}
+
+{-# OPTIONS_GHC -fconstraint-solver-iterations=10 #-}
 
 module Bittide.Axi4 where
 
 import Clash.Prelude
 
-import Data.Maybe
 import Protocols.Axi4.Stream
+
+import Bittide.Extra.Maybe
 
 type EndOfPacket = Bool
 type BufferFull = Bool
@@ -27,11 +30,14 @@ data WbAxisRxBufferState fifoDepth nBytes = WbAxisRxBufferState
 {-# NOINLINE axisFromByteStream #-}
 axisFromByteStream ::
   forall dom confA confB userType .
-  ( HiddenClockResetEnable dom, DataWidth confA ~ 1, KnownAxi4StreamConfig confB
+  ( HiddenClockResetEnable dom
+  , DataWidth confA ~ 1
+  , KnownAxi4StreamConfig confB
   , 1 <= DataWidth confB
   , DestWidth confA ~ DestWidth confB
   , IdWidth confA ~ IdWidth confB
-  , Eq userType, NFDataX userType) =>
+  , Eq userType
+  , NFDataX userType) =>
   "axisByteM2S"  ::: Signal dom (Maybe (Axi4StreamM2S confA userType)) ->
   "axisWordS2M" ::: Signal dom Axi4StreamS2M ->
   "" :::
@@ -40,8 +46,16 @@ axisFromByteStream ::
 axisFromByteStream = curry (mealyB go initState)
  where
   initState :: (Index (DataWidth confB), Vec (DataWidth confB - 1) (Unsigned 8, Bool, Bool), userType)
-  initState = (0, repeat initTempAxi, deepErrorX "axisFromByteStream: Initial user signal is undefined.")
-  initTempAxi = (deepErrorX "axisFromByteStream: Initial data undefined.", False, deepErrorX "axisFromByteStream: Initial strobe undefined.")
+  initState =
+    ( 0
+    , repeat initTempAxi
+    , deepErrorX "axisFromByteStream: Initial user signal is undefined."
+    )
+  initTempAxi =
+    ( deepErrorX "axisFromByteStream: Initial data undefined."
+    , False
+    , deepErrorX "axisFromByteStream: Initial strobe undefined."
+    )
   go state (Nothing, _) = (state, (Axi4StreamS2M{_tready = True}, Nothing))
   go (oldCounter, storedBytes, prevUser) (Just Axi4StreamM2S{..}, Axi4StreamS2M{_tready}) = ((newCounter, nextStoredBytes, _tuser), (smallS2M, bigM2S))
    where
@@ -76,12 +90,17 @@ axisFromByteStream = curry (mealyB go initState)
 {-# NOINLINE axisToByteStream #-}
 axisToByteStream ::
   forall dom confA confB userType .
-  ( HiddenClockResetEnable dom, DataWidth confB ~ 1, KnownAxi4StreamConfig confA
+  ( HiddenClockResetEnable dom
+  , DataWidth confB ~ 1
+  , KnownAxi4StreamConfig confA
   , 1 <= DataWidth confA
-  , DestWidth confA ~ DestWidth confB, IdWidth confA ~ IdWidth confB) =>
+  , DestWidth confA ~ DestWidth confB
+  , IdWidth confA ~ IdWidth confB) =>
   "AxisWordM2S" ::: Signal dom (Maybe (Axi4StreamM2S confA userType)) ->
   "AxisByteS2M" ::: Signal dom Axi4StreamS2M ->
-  "" ::: ( "AxisWordS2M" ::: Signal dom Axi4StreamS2M, "AxisByteM2S" ::: Signal dom (Maybe (Axi4StreamM2S confB userType)))
+  "" :::
+  ( "AxisWordS2M" ::: Signal dom Axi4StreamS2M
+  , "AxisByteM2S" ::: Signal dom (Maybe (Axi4StreamM2S confB userType)))
 axisToByteStream = curry (mealyB go (0 :: Index (DataWidth confA)))
  where
   go state (Nothing, _) = (state, (Axi4StreamS2M{_tready = True}, Nothing))
@@ -98,7 +117,7 @@ axisToByteStream = curry (mealyB go (0 :: Index (DataWidth confA)))
         , _tdest = _tdest
         , _tlast = _tlast && lastByte}
     (outData, outKeep, outStrb) = zip3 _tdata _tkeep _tstrb !! oldCounter
-    lastValidByteIndex = fromMaybe 0 $ fold (\ a b -> if isJust b then b else a) $ ((\a b -> if a then Just b else Nothing) <$> _tkeep <*> indicesI) :< Nothing
+    lastValidByteIndex = fromMaybesR 0 (orNothing <$> _tkeep <*> indicesI)
     newCounter
       | _tready && lastByte = 0
       | _tready = satSucc SatWrap oldCounter

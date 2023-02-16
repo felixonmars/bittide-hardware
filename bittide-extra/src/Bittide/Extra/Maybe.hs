@@ -1,0 +1,40 @@
+module Bittide.Extra.Maybe where
+
+import Clash.Prelude
+
+import Data.Maybe
+
+-- | Extract `Just` from a `Vec` of `Maybe`s. Prefer left-most `Just`. If no `Just` is
+-- found, use a default value.
+--
+-- >>> fromMaybesR 0 (Just 1 :> Just 2 :> Nothing)
+-- 1
+-- >>> fromMaybesR 0 (Nothing :> Nothing :> Nothing)
+-- 0
+--
+fromMaybesL :: a -> Vec n (Maybe a) -> a
+fromMaybesL a = fromMaybe a . foldl (<|>) Nothing
+
+-- | Extract `Just` from a `Vec` of `Maybe`s. Prefer right-most `Just`. If no `Just` is
+-- found, use a default value.
+--
+-- >>> fromMaybesR 0 (Just 1 :> Just 2 :> Nothing)
+-- 2
+-- >>> fromMaybesR 0 (Nothing :> Nothing :> Nothing)
+-- 0
+--
+fromMaybesR :: a -> Vec n (Maybe a) -> a
+fromMaybesR a = fromMaybe a . foldr (flip (<|>)) Nothing
+
+-- | Returns 'Just a' when the boolean is 'True', or 'Nothing' when 'False'.
+--
+-- * Examples:
+--
+--    >>> orNothing True 5
+--    Just 5
+--
+--    >>> orNothing False "Hello"
+--    Nothing
+orNothing :: Bool -> a -> Maybe a
+orNothing True a = Just a
+orNothing False _ = Nothing
