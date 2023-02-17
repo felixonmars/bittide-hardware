@@ -91,12 +91,8 @@ axisToByteStreamUnchangedPackets = property $ do
             .||. unsafeToHighPolarity (resetGenN d10)
           axisS2MBig = Axi4StreamS2M <$> fromList (cycle repeatingReadyList)
           (axisS2MSmall, axisM2SBig) =
-            wcre (axisToByteStream @_ @_ @(BasicAxiConfig 1 )) axisM2SSmall axisS2MBig
-          -- Axi stream master
-          axisM2SSmall = withClockResetEnable @System clockGen resetGen (toEnable nextAxi)
-            $ fromListWithControl (axiStream <> L.repeat Nothing)
-          -- Axi Stream backpressure by disabling fromListWithControl
-          nextAxi = axisS2MSmall .==. pure (Axi4StreamS2M True)
+            wcre (axisToByteStream @System @_ @(BasicAxiConfig 1)) axisM2SSmall axisS2MBig
+          axisM2SSmall = wcre $ axi4StreamSimDriver axiStream axisS2MSmall
         maxSimDuration = 10 + 10*sum packetLengths * L.length repeatingReadyList
       let
         (axisM2SSmall, axisS2MSmall,axisM2SBig, axisS2MBig, _) =
@@ -139,10 +135,7 @@ axisFromByteStreamUnchangedPackets = property $ do
           axisS2MBig = Axi4StreamS2M <$> fromList (cycle repeatingReadyList)
           (axisS2MSmall, axisM2SBig) = wcre axisFromByteStream axisM2SSmall axisS2MBig
           -- Axi stream master
-          axisM2SSmall = withClockResetEnable @System clockGen resetGen (toEnable nextAxi)
-            $ fromListWithControl (axiStream <> L.repeat Nothing)
-          -- Axi Stream backpressure by disabling fromListWithControl
-          nextAxi = axisS2MSmall .==. pure (Axi4StreamS2M True)
+          axisM2SSmall = wcre $ axi4StreamSimDriver axiStream axisS2MSmall
         maxSimDuration = 10 + 10*sum packetLengths * L.length repeatingReadyList
         (axisM2S, axisS2M, _) = L.unzip3 $ L.takeWhile (\(_,_,r) -> r) $ sampleN maxSimDuration topEntity
         retrievedPackets = axis4ToPackets axisM2S axisS2M
