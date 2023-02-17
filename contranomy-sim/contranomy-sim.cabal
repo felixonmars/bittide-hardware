@@ -72,6 +72,7 @@ common common-options
     ghc-typelits-natnormalise,
     ghc-typelits-extra,
     ghc-typelits-knownnat,
+    bittide,
 
   other-modules: Paths_contranomy_sim
 
@@ -81,9 +82,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     ContranomySim.Print
-    ContranomySim.ReadElf
     ContranomySim.MemoryMapConsts
-    ContranomySim.DeviceTreeCompiler
   build-depends:
     elf >= 0.31 && < 0.32,
     bytestring >= 0.10 && < 0.11,
@@ -98,7 +97,7 @@ executable simcontranomy
     bytestring >= 0.10 && < 0.11,
     contranomy,
     contranomy-sim,
-
+    bittide,
     base,
     containers,
     clash-prelude,
@@ -112,7 +111,6 @@ test-suite unittests
   ghc-options: -threaded
   main-is: tests.hs
   other-modules:
-    Tests.ContranomySim.ReadElf
     Tests.ContranomySim.Print
     Tests.ContranomySim.FirmwareIntegrationTests
   build-depends:

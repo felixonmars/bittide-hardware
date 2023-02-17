@@ -16,6 +16,7 @@ import Tests.DoubleBufferedRam
 import Tests.ElasticBuffer
 import Tests.Haxioms
 import Tests.Link
+import Tests.ProcessingElement.ReadElf
 import Tests.ScatterGather
 import Tests.StabilityChecker
 import Tests.Switch
@@ -25,15 +26,16 @@ tests :: TestTree
 tests = testGroup "Unittests"
   [ axi4Group
   , calGroup
+  , clockGenGroup
   , ebGroup
   , haxiomsGroup
   , linkGroup
   , memMapGroup
   , ramGroup
+  , readElfTestGroup
   , sgGroup
   , stabilityGroup
   , switchGroup
-  , clockGenGroup
   ]
 
 setDefaultHedgehogTestLimit :: HedgehogTestLimit -> HedgehogTestLimit

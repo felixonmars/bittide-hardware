@@ -13,8 +13,10 @@ import           Data.List        (dropWhileEnd)
 import           Prelude
 import           System.Directory
 import           System.Exit
-import           System.IO        (hClose, openBinaryTempFile)
+import System.IO ( hClose, hPutStrLn, openBinaryTempFile )
 import           System.Process
+
+import qualified System.IO as IO
 
 
 findDtc :: IO (Maybe FilePath)
@@ -32,11 +34,8 @@ compileDeviceTreeSource src = do
   dtcPathRes <- findDtc
   case dtcPathRes of
     Nothing -> do
-      putStrLn "Unable to find device tree compiler on the system."
-      putStrLn "Please install the device tree compiler on your system."
-      putStrLn "(Ubuntu) `apt-get install device-tree-compiler`"
-      putStrLn "(Fedora) `dnf install dtc`"
-
+      hPutStrLn IO.stderr
+        "Unable to find device tree compiler on the system. Are you in a Nix shell?"
       pure Nothing
     Just dtc -> do
 
@@ -56,14 +55,14 @@ compileDeviceTreeSource src = do
 
           pure $ Just content
         ExitFailure n -> do
-          putStrLn $ "devicetree compilation failed with exit code: " <> show n
-          putStrLn $ "devicetree-source file: " <> src
-          putStrLn ""
-          putStrLn "stdout:"
-          putStrLn stdout
-          putStrLn ""
-          putStrLn "stderr:"
-          putStrLn stderr
+          hPutStrLn IO.stderr $ "devicetree compilation failed with exit code: " <> show n
+          hPutStrLn IO.stderr $ "devicetree-source file: " <> src
+          hPutStrLn IO.stderr ""
+          hPutStrLn IO.stderr "stdout:"
+          hPutStrLn IO.stderr stdout
+          hPutStrLn IO.stderr ""
+          hPutStrLn IO.stderr "stderr:"
+          hPutStrLn IO.stderr stderr
 
           hClose handle
           removeFile path

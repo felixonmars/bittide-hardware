@@ -15,14 +15,14 @@ import           Test.HUnit.Base       (Assertion, (@?=))
 
 import           Contranomy
 import           ContranomySim.Print
-import           ContranomySim.ReadElf
+import           Bittide.ProcessingElement.ReadElf
 import           System.Directory      (copyFile, listDirectory)
 import           System.FilePath       (dropExtension, takeBaseName,
                                         takeExtension, (</>))
 import           Test.Tasty
 import           Test.Tasty.HUnit      (testCase)
 import           Paths_contranomy_sim
-import           ContranomySim.DeviceTreeCompiler
+import           Bittide.ProcessingElement.DeviceTreeCompiler
 import           ContranomySim.MemoryMapConsts
 import           System.Exit (exitFailure)
 import           Numeric

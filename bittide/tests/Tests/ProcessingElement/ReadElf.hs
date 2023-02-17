@@ -2,7 +2,7 @@
 --
 -- SPDX-License-Identifier: Apache-2.0
 
-module Tests.ContranomySim.ReadElf where
+module Tests.ProcessingElement.ReadElf where
 
 import qualified Data.ByteString       as BS
 import qualified Data.List             as L
@@ -11,7 +11,7 @@ import           Prelude
 import           Test.Tasty            (TestTree, testGroup)
 import           Test.Tasty.HUnit      (assertEqual, testCase, (@?=))
 
-import           ContranomySim.ReadElf (readElf)
+import           Bittide.ProcessingElement.ReadElf (readElf)
 import           Data.Elf
 import           Data.IntMap           as I
 import           Numeric
@@ -102,8 +102,8 @@ dataSegment = ElfSegment
                 }
 
 
-tests :: TestTree
-tests = testGroup "Read ELF Tests"
+readElfTestGroup :: TestTree
+readElfTestGroup = testGroup "Read ELF Tests"
   [ testCase "ELF file empty" $ do
       let elf = riscvElfEmpty
 
