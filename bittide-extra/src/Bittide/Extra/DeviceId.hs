@@ -13,25 +13,35 @@ import Data.String.Interpolate.Util (unindent)
 import Clash.Annotations.TH (makeTopEntity)
 
 data State
-  = LOAD
-  | SHIFT
-  | DONE
+  = Load
+  | Shift
+  | Done
   deriving (Generic, NFDataX)
 
-type DIN = BitVector 1
-type DOUT = BitVector 1
+type DIN = Bit
+type DOUT = Bit
 type READ = Bool
-type SHIFT = Bool
+type Shift = Bool
 
-deviceId :: HiddenClockResetEnable dom => "maybeDNA" ::: Signal dom (Maybe (BitVector 96))
-deviceId = mux done (Just <$> dna) (pure Nothing)
+-- | A valid DNA to be used for simulation purposes.
+defaultSimDNA :: BitVector 96
+defaultSimDNA = 0x4ABABAB55555555DEADBEEF1
+
+deviceId ::
+  HiddenClockResetEnable dom =>
+  BitVector 96 ->
+  "maybeDNA" ::: Signal dom (Maybe (BitVector 96))
+deviceId simDna= mux done (Just <$> dna) (pure Nothing)
  where
   (rd, sh, dna, done) = dnaControl hasClock hasReset hasEnable dout
-  dout = dnaPorte hasClock dout rd sh
+  dout = dnaPorte2 hasClock simDna dout rd sh
 
 -- | State machine to extract the DNA from Kintex Ultrascale FPGAs.
 -- To be connected to the Device DNA Access Port @DNA_PORTE2@
+--
 -- Instantiation template:
+--
+-- @
 --  DNA_PORTE2 #(
 --     .SIM_DNA_VALUE(96'h000000000000000000000000)  // Specifies a sample 96-bit DNA value for simulation.
 --  )
@@ -40,8 +50,9 @@ deviceId = mux done (Just <$> dna) (pure Nothing)
 --     .CLK(CLK),     // 1-bit input: Clock input.
 --     .DIN(DIN),     // 1-bit input: User data input pin.
 --     .READ(READ),   // 1-bit input: Active-High load DNA, active-Low read input.
---     .SHIFT(SHIFT)  // 1-bit input: Active-High shift enable input.
+--     .Shift(Shift)  // 1-bit input: Active-High shift enable input.
 --  );
+-- @
 dnaControl ::
   KnownDomain dom =>
   "clk" ::: Clock dom ->
@@ -50,39 +61,39 @@ dnaControl ::
   "dout" ::: Signal dom DOUT ->
   "" :::
   ( "read" ::: Signal dom READ
-  , "shift" ::: Signal dom SHIFT
+  , "shift" ::: Signal dom Shift
   , "dna" ::: Signal dom (BitVector 96)
   , "done" ::: Signal dom  Bool)
 
 dnaControl clk rst ena dout = (rd .&&. fromEnable ena, sh .&&. fromEnable ena, dna, done)
  where
-  (rd, sh, dna, done) = unbundle $ mealy clk rst ena go (LOAD, 0) dout
-  go :: (State, BitVector 96) -> DOUT -> ((State, BitVector 96), (READ, SHIFT, BitVector 96, Bool))
+  (rd, sh, dna, done) = mealyB clk rst ena go (Load, 0) dout
+  go :: (State, BitVector 96) -> DOUT -> ((State, BitVector 96), (READ, Shift, BitVector 96, Bool))
   go (state,reg) input = (newState, (r, s, reg, dnaDetected))
    where
     (newState, r, s) = case state of
-      LOAD  -> ((SHIFT, newShift), True, False)
-      SHIFT
-        | dnaDetected -> ((DONE, reg), False, False)
-        | otherwise   -> ((SHIFT, newShift), False, True)
-      DONE  -> ((DONE, reg), False, False)
-    newShift = input ++# slice d95 d1 reg
+      Load  -> ((Shift, newShift), True, False)
+      Shift
+        | dnaDetected -> ((Done, reg), False, False)
+        | otherwise   -> ((Shift, newShift), False, True)
+      Done  -> ((Done, reg), False, False)
+    newShift =  input +>>. reg
     dnaDetected = slice d95 d94 reg == 1 && slice d1 d0 reg == 1
 
-{-# ANN dnaPorte (InlineYamlPrimitive [Verilog] $ unindent [i|
+{-# ANN dnaPorte2 (InlineYamlPrimitive [Verilog] $ unindent [i|
   BlackBox:
-    name: Bittide.Extra.DeviceId.dnaPorte
+    name: Bittide.Extra.DeviceId.dnaPorte2
     kind: Declaration
     type: |-
-      dnaPorte ::
+      dnaPorte2 ::
         KnownDomain dom =>    -- ARG[0]
         Clock dom ->          -- ARG[1]
         Signal dom DIN ->     -- ARG[2]
         Signal dom READ ->    -- ARG[3]
-        Signal dom SHIFT ->   -- ARG[4]
+        Signal dom Shift ->   -- ARG[4]
         Signal dom DOUT       -- RESULT
     template: |-
-      // Start DNA-PORTE2 instantiation
+      // Begin DNA-PORTE2 instantiation
       DNA_PORTE2 #(
           .SIM_DNA_VALUE(96'h000000000000000000000000)  // Specifies a sample 96-bit DNA value for simulation.
       )
@@ -91,43 +102,66 @@ dnaControl clk rst ena dout = (rd .&&. fromEnable ena, sh .&&. fromEnable ena, d
           .CLK(~ARG[1]),     // 1-bit input: Clock input.
           .DIN(~ARG[2]),     // 1-bit input: User data input pin.
           .READ(~ARG[3]),   // 1-bit input: Active-High load DNA, active-Low read input.
-          .SHIFT(~ARG[4])  // 1-bit input: Active-High shift enable input.
+          .Shift(~ARG[4])  // 1-bit input: Active-High shift enable input.
       );
-      // Stop DNA-PORTE2 instantiation
+      // End DNA-PORTE2 instantiation
 |]) #-}
 
--- | A component that can be found on Xilinx Ultrascale FPGAs that can be used
--- to extract a unique device identifier. It offers an API that can be used to
--- load the identifier into a shift register and control signals to control this
--- shift register.
-dnaPorte ::
+-- | From https://docs.xilinx.com/r/2021.2-English/ug974-vivado-ultrascale-libraries/DNA_PORTE2:
+--
+-- The DNA_PORT allows access to a dedicated shift register that can be loaded
+-- with the Device DNA data bits (factory-programmed, read-only unique ID) for a
+-- given UltraScale device. In addition to shifting out the DNA data bits, this
+-- component allows for the inclusion of supplemental bits of your data, or
+-- allows for the DNA data to rollover (repeat DNA data after initial data has
+-- been shifted out). This component is primarily used in conjunction with other
+-- circuitry to build added copy protection for the device bitstream from possible
+-- theft.
+--
+-- To access the Device DNA data, you must first load the shift register by setting
+-- the active-High READ signal for one clock cycle. After the shift register is
+-- loaded, the data can be synchronously shifted out by enabling the active-High
+-- SHIFT input and capturing the data out the DOUT output port. Additional data can
+-- be appended to the end of the 96-bit shift register by connecting the appropriate
+-- logic to the DIN port. If DNA data rollover is desired, connect the DOUT port
+-- directly to the DIN port to allow for the same data to be shifted out after
+-- completing the 96-bit shift operation. If no additional data is necessary, the
+-- DIN port can be tied to a logic zero. The attribute SIM_DNA_VALUE can be
+-- optionally set to allow for simulation of a possible DNA data sequence. By
+-- default, the Device DNA data bits are all zeros in the simulation model.
+dnaPorte2 ::
   KnownDomain dom =>
   -- | Incoming clock signal.
   Clock dom ->
+  -- | Simulation only DNA value, must have bits @[95:94]@ and @[1:0]@ set to @0b01@.
+  BitVector 96 ->
   -- | Shift register input pin.
   Signal dom DIN ->
   -- | Active high load DNA, active low read input.
   Signal dom READ ->
   -- | Active high shift enable.
-  Signal dom SHIFT ->
+  Signal dom Shift ->
   -- | DNA output pin.
   Signal dom DOUT
-dnaPorte clk din read shift = resize <$> regOut
+dnaPorte2 clk dnaSimValue din read shift
+  | slice d95 d94 dnaSimValue /= 0b01 || slice d1 d0 dnaSimValue /= 0b01 =
+    error "dnaPorte2: Supplied simulation DNA must have bits [95:94] and [1:0] set to 0b01"
+  | otherwise = unpack . resize <$> regOut
  where
   regOut = register clk resetGen enableGen 0 $
     mux read
-    (pure 0x5555555555555555)
+    (pure dnaSimValue)
     (mux shift
-      ((\a b -> slice d96 d1 $ pack (a, b)) <$> din <*> regOut)
+      ((+>>.) <$> din <*> regOut)
       regOut
     )
-{-# NOINLINE dnaPorte #-}
-{-# ANN dnaPorte hasBlackBox #-}
+{-# NOINLINE dnaPorte2 #-}
+{-# ANN dnaPorte2 hasBlackBox #-}
 
 deviceIdSystem ::
   "clk" ::: Clock System ->
   "rst" ::: Reset System ->
   "maybeDNA" ::: Signal System (Maybe (BitVector 96))
-deviceIdSystem  clk rst = withClockResetEnable clk rst enableGen $ deviceId @System
+deviceIdSystem  clk rst = withClockResetEnable clk rst enableGen $ deviceId @System 0x4ABABAB55555555DEADBEEF1
 
 makeTopEntity 'deviceIdSystem
