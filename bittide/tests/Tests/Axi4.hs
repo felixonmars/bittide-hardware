@@ -67,7 +67,7 @@ genAxisM2S genUser = do
 -- if a stream of multiple generated `Packet`s can be routed through it without being changed.
 axisToByteStreamUnchangedPackets :: Property
 axisToByteStreamUnchangedPackets = property $ do
-  busWidth <- forAll $ Gen.enum 1 8
+  busWidth <- forAll @_ @Integer $ Gen.enum 1 8
   nrOfPackets <- forAll $ Gen.enum 1 8
   packetLengths <- forAll $
     Gen.list (Range.singleton nrOfPackets) $
@@ -89,15 +89,16 @@ axisToByteStreamUnchangedPackets = property $ do
             isJust <$> axisM2SSmall
             .||. isJust <$> axisM2SBig
             .||. unsafeToHighPolarity (resetGenN d10)
-          axisM2SBig :: Signal System (Maybe (Axi4StreamM2S (BasicAxiConfig 1) () ))
           axisS2MBig = Axi4StreamS2M <$> fromList (cycle repeatingReadyList)
-          (axisS2MSmall, axisM2SBig) = wcre axisToByteStream axisM2SSmall axisS2MBig
+          (axisS2MSmall, axisM2SBig) =
+            wcre (axisToByteStream @_ @_ @(BasicAxiConfig 1 )) axisM2SSmall axisS2MBig
           -- Axi stream master
           axisM2SSmall = withClockResetEnable @System clockGen resetGen (toEnable nextAxi)
             $ fromListWithControl (axiStream <> L.repeat Nothing)
           -- Axi Stream backpressure by disabling fromListWithControl
           nextAxi = axisS2MSmall .==. pure (Axi4StreamS2M True)
         maxSimDuration = 10 + 10*sum packetLengths * L.length repeatingReadyList
+      let
         (axisM2SSmall, axisS2MSmall,axisM2SBig, axisS2MBig, _) =
           L.unzip5 $ L.takeWhile (\(_,_,_,_,r) -> r) $ sampleN maxSimDuration topEntity
         retrievedPackets = axis4ToPackets axisM2SBig axisS2MBig
@@ -112,7 +113,7 @@ axisToByteStreamUnchangedPackets = property $ do
 -- if a stream of multiple generated `Packet`s can be routed through it without being changed.
 axisFromByteStreamUnchangedPackets :: Property
 axisFromByteStreamUnchangedPackets = property $ do
-  busWidth <- forAll $ Gen.enum 1 8
+  busWidth <- forAll @_ @Integer $ Gen.enum 1 8
   nrOfPackets <- forAll $ Gen.enum 1 8
   packetLengths <- forAll $
     Gen.list (Range.singleton nrOfPackets) $
