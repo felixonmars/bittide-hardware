@@ -10,6 +10,8 @@ Copyright:           Copyright © 2022 Google LLC
 data-files:
   tests/reports/*.rpt
   tests/reports/golden/*.rpt
+  device-trees/hello.dts
+  demo-files/binaries/hello
 
 common common-options
   default-extensions:
@@ -68,6 +70,7 @@ common common-options
     bittide-extra,
     bittide,
     contranomy,
+    clash-cores,
     clash-lib,
     clash-prelude,
     clash-protocols,

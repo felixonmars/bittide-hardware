@@ -20,7 +20,7 @@ contranomy clk rst = out
   ( pc
    , (iStart, iSize, iMem)
    , (dStart, dSize, dMem)) = $(do
-      elfPath <- runIO $ getDataFileName "../target/riscv32i-unknown-none-elf/release/hello"
+      elfPath <- runIO $ getDataFileName "/demo-files/binaries/hello"
       fdtPath <- runIO $ getDataFileName "/device-trees/hello.dts"
       memBlobsFromElf elfPath (Just fdtPath) (0x40003EE8 :: Int))
 
