@@ -13,7 +13,7 @@ import Data.Maybe
 -- 0
 --
 fromMaybesL :: a -> Vec n (Maybe a) -> a
-fromMaybesL a = fromMaybe a . foldl (<|>) Nothing
+fromMaybesL a = fromMaybe a . fold (<|>) . (Nothing :>)
 
 -- | Extract `Just` from a `Vec` of `Maybe`s. Prefer right-most `Just`. If no `Just` is
 -- found, use a default value.
@@ -24,7 +24,7 @@ fromMaybesL a = fromMaybe a . foldl (<|>) Nothing
 -- 0
 --
 fromMaybesR :: a -> Vec n (Maybe a) -> a
-fromMaybesR a = fromMaybe a . foldr (flip (<|>)) Nothing
+fromMaybesR a = fromMaybe a . fold (flip (<|>)) . (Nothing :>)
 
 -- | Returns 'Just a' when the boolean is 'True', or 'Nothing' when 'False'.
 --

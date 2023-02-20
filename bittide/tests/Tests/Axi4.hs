@@ -89,20 +89,20 @@ axisToByteStreamUnchangedPackets = property $ do
             isJust <$> axisM2SSmall
             .||. isJust <$> axisM2SBig
             .||. unsafeToHighPolarity (resetGenN d10)
-          axisS2MBig = Axi4StreamS2M <$> fromList (cycle repeatingReadyList)
-          (axisS2MSmall, axisM2SBig) =
-            wcre (axisToByteStream @System @_ @(BasicAxiConfig 1)) axisM2SSmall axisS2MBig
-          axisM2SSmall = wcre $ axi4StreamSimDriver axiStream axisS2MSmall
-        maxSimDuration = 10 + 10*sum packetLengths * L.length repeatingReadyList
+          axisS2MSmall = Axi4StreamS2M <$> fromList (cycle repeatingReadyList)
+          (axisS2MBig, axisM2SSmall) =
+            wcre (axisToByteStream @System @_ @(BasicAxiConfig 1)) axisM2SBig axisS2MSmall
+          axisM2SBig = wcre $ axi4StreamSimDriver axiStream axisS2MBig
+        maxSimDuration = 10 + (2 * sum packetLengths * L.length repeatingReadyList)
       let
         (axisM2SSmall, axisS2MSmall,axisM2SBig, axisS2MBig, _) =
           L.unzip5 $ L.takeWhile (\(_,_,_,_,r) -> r) $ sampleN maxSimDuration topEntity
-        retrievedPackets = axis4ToPackets axisM2SBig axisS2MBig
+        retrievedPackets = axis4ToPackets axisM2SSmall axisS2MSmall
       footnote . fromString $ "axisM2SSmall:" <> show axisM2SSmall
       footnote . fromString $ "axisS2MSmall:" <> show axisS2MSmall
       footnote . fromString $ "axisM2SBig:" <> show axisM2SBig
       footnote . fromString $ "axisS2MBig:" <> show axisS2MBig
-      L.concat packets  === retrievedPackets
+      packets  === retrievedPackets
 
 
 -- | Generate a `axisFromByteStream` component with variable output bus width and test
@@ -131,27 +131,35 @@ axisFromByteStreamUnchangedPackets = property $ do
             isJust <$> axisM2SSmall
             .||. isJust <$> axisM2SBig
             .||. unsafeToHighPolarity (resetGenN d10)
-          axisM2SBig :: Signal System (Maybe (Axi4StreamM2S (BasicAxiConfig busWidth) () ))
           axisS2MBig = Axi4StreamS2M <$> fromList (cycle repeatingReadyList)
-          (axisS2MSmall, axisM2SBig) = wcre axisFromByteStream axisM2SSmall axisS2MBig
+          (axisS2MSmall, axisM2SBig) = wcre @System $
+            axisFromByteStream @_ @_ @(BasicAxiConfig busWidth) axisM2SSmall axisS2MBig
           -- Axi stream master
           axisM2SSmall = wcre $ axi4StreamSimDriver axiStream axisS2MSmall
-        maxSimDuration = 10 + 10*sum packetLengths * L.length repeatingReadyList
+        maxSimDuration = 10 + (2*sum packetLengths * L.length repeatingReadyList)
         (axisM2S, axisS2M, _) = L.unzip3 $ L.takeWhile (\(_,_,r) -> r) $ sampleN maxSimDuration topEntity
         retrievedPackets = axis4ToPackets axisM2S axisS2M
-      L.concat packets  === retrievedPackets
+      packets  === retrievedPackets
 
 
 -- | Extract a Packet by observing an Axi4 Stream.
 axis4ToPackets ::
-  KnownNat (DataWidth conf) =>
+  (Show userType, KnownNat (DataWidth conf)) =>
   [Maybe (Axi4StreamM2S conf userType)] ->
   [Axi4StreamS2M] ->
-  Packet
-axis4ToPackets axisM2S axisS2M = catMaybes . L.concat $ L.zipWith f axisM2S axisS2M
+  [Packet]
+axis4ToPackets axisM2S axisS2M = fmap (catMaybes . L.concatMap f) packets
  where
-  f (Just Axi4StreamM2S{..}) (_tready -> True) = toList (orNothing <$> _tkeep <*> _tdata)
-  f _ _ = []
+  f Axi4StreamM2S{..} = toList (orNothing <$> _tkeep <*> _tdata)
+
+  validMasters = mapMaybe fst (filter (\(m, s) -> isJust m && _tready s) $ L.zip axisM2S axisS2M)
+  packetEnds = L.findIndices _tlast validMasters
+  packets = getPackets packetEnds validMasters 0
+  getPackets [] _  _ = []
+  getPackets (i:iii) list  acc = pre : getPackets iii post (acc + toTake)
+   where
+    (pre, post) = L.splitAt toTake list
+    toTake = i - acc + 1
 
 -- | Convert a given `Packet` to a list of Wishbone master operations that write
 -- the packet to the slave interface as a contiguous blob of memory with the bytes from
