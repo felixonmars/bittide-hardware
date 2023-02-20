@@ -4,23 +4,25 @@
 module Bittide.ProcessingElement.Util where
 
 import Clash.Prelude hiding (Exp)
+
+import Bittide.ProcessingElement.DeviceTreeCompiler
+import Bittide.ProcessingElement.ReadElf
+import Bittide.SharedTypes
+
+import Clash.Explicit.BlockRam.File
+import Data.Maybe
+import Language.Haskell.TH
+import Numeric (showHex)
+import System.Exit
+
 import qualified Data.List as L
 import qualified Data.ByteString as BS
 import qualified Data.IntMap as I
 
-import Bittide.ProcessingElement.DeviceTreeCompiler
-import Bittide.ProcessingElement.ReadElf
-
-import System.Exit
-import Bittide.SharedTypes
-import Language.Haskell.TH
-import Clash.Explicit.BlockRam.File
-import Numeric (showHex)
-
 -- | Given the path to an elf file, the path to a device tree and a starting address
 --  for the device tree. Return a 3 tuple containing:
 --  (initial program counter, instruction memory blob, data memory blob)
-memBlobsFromElf :: FilePath -> String -> I.Key -> Q Exp
+memBlobsFromElf :: FilePath -> Maybe FilePath -> I.Key -> Q Exp
 memBlobsFromElf elfPath deviceTreePath fdtAddr = do
   (pc, iMemIntMap, dMemIntMap) <- runIO (getBytesMems elfPath deviceTreePath fdtAddr)
   let
@@ -32,14 +34,14 @@ memBlobsFromElf elfPath deviceTreePath fdtAddr = do
 -- | Given the path to an elf file, the path to a device tree and a starting address
 --  for the device tree. Return a 3 tuple containing:
 -- Return a 3 tuple containing (initial program counter, instruction memory blob, data memory blob)
-getBytesMems :: FilePath -> String -> I.Key -> IO (BitVector 32, I.IntMap Byte, I.IntMap Byte)
+getBytesMems :: FilePath -> Maybe FilePath -> I.Key -> IO (BitVector 32, I.IntMap Byte, I.IntMap Byte)
 getBytesMems elfPath deviceTreePath fdtAddr = do
 
   elfBytes <- BS.readFile elfPath
   let (entry, iMem, dMem0) = readElfFromMemory elfBytes
 
   -- add device tree as a memory mapped component
-  deviceTree <- readDeviceTree deviceTreePath
+  deviceTree <- maybe (pure []) readDeviceTree deviceTreePath
   let
     deviceTreeMap = I.fromAscList (L.zip [fdtAddr ..] deviceTree)
     dMem1 = I.unionWithKey (\k _ _ -> error $
@@ -47,11 +49,11 @@ getBytesMems elfPath deviceTreePath fdtAddr = do
       <> showHex k "") dMem0 deviceTreeMap
 
   putStrLn $ "elf file: " <> elfPath <>
-          "\ndevice tree: " <> deviceTreePath <>
+          "\ndevice tree: " <> fromMaybe "None" deviceTreePath <>
           "\ndevice tree starting address: " <> show fdtAddr <>
           "\n device tree size: " <> showHex (L.length deviceTree) ""
 
-  pure (entry, iMem, dMem1)
+  pure (entry, iMem, if isJust deviceTreePath then dMem1 else dMem0)
 
 -- | Given an IntMap, return a 3 tuple containing:
 -- (starting address, size, memBlob)
