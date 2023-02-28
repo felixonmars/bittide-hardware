@@ -111,3 +111,37 @@ singleMasterInterconnect' config master slaves = (toMaster, bundle toSlaves)
     case divWithRemainder @(Regs a 8) @8 @7 of
       Dict ->
         f (master, unbundle slaves)
+
+-- TODO: Implement receiving data + receiving fifo.
+-- TODO: Implement more registers for: txFifoFull, txFifoEmpty, rxFifoFull, rxFifoEmpty.
+-- TODO: Add test.
+-- | Wishbone accessible UART core featuring a transmit `fifo`.
+uartWb ::
+  ( HiddenClockResetEnable dom, ValidBaud dom baudRate
+  , 1 <= transmitBufferDepth
+  , KnownNat addrW
+  , KnownNat nBytes
+  ) =>
+  SNat transmitBufferDepth ->
+  SNat receiveBufferDepth ->
+  SNat baudRate ->
+  Signal dom (WishboneM2S addrW nBytes (Bytes nBytes)) ->
+  Signal dom Bit ->
+  ( Signal dom (WishboneS2M(Bytes nBytes))
+  , Signal dom Bit)
+uartWb txDepth@SNat SNat baud wbM2S uartRx = (wbS2M, uartTx)
+ where
+  (uartReceived, uartTx, uartAck) = uart baud uartRx uartRequest
+  (uartRequest, txFifoReady) = fifo txDepth txFifoWrite uartAck
+  (wbS2M, txFifoWrite) = unbundle $ fmap go (bundle (wbM2S, uartReceived, txFifoReady))
+
+  go (WishboneM2S{..}, _, txFifoReadyGo) =
+      ( emptyWishboneS2M{acknowledge, err}
+      , txFifoWriteGo
+      )
+   where
+    acknowledge = busCycle && strobe && addr == 0 && writeEnable && txFifoReadyGo
+    err = busCycle && strobe && (addr /= 0 || not writeEnable)
+    txFifoWriteGo
+      | acknowledge = Just $ resize writeData
+      | otherwise   = Nothing
