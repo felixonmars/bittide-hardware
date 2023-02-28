@@ -563,3 +563,45 @@ updateAddrs rdAddr (Just (i, a)) bufSelect =
 
 updateAddrs rdAddr Nothing bufSelect =
   (mul2Index rdAddr bufSelect, Nothing)
+
+{-# NOINLINE fifo #-}
+
+-- TODO: Add test.
+-- | Simple First in, First out buffer the contains a backpressure mechanism.
+fifo ::
+  forall dom fifoDepth a .
+  (HiddenClockResetEnable dom,  1 <= fifoDepth, NFDataX a) =>
+  SNat fifoDepth ->
+  Signal dom (Maybe a) ->
+  Signal dom Bool ->
+  ( Signal dom (Maybe a)
+  , Signal dom Bool)
+fifo depth@SNat fifoIn readyIn = (fifoOut, readyOut)
+ where
+  bramOut = readNew (blockRamU NoClearOnReset depth (const undefined)) readAddr writeOp
+  (readAddr, writeOp, fifoOut, readyOut) = mealyB go (0, 0) (fifoIn, readyIn, bramOut)
+  go ::
+    (Index fifoDepth, Index fifoDepth) ->
+    (Maybe a, Bool, a) ->
+    ( (Index fifoDepth, Index fifoDepth)
+    , (Index fifoDepth, Maybe (Index fifoDepth, a), Maybe a, Bool))
+  go (readCounter, writeCounter) (fifoInGo, readyInGo, bramOutGo) =
+    ((readCounterNext, writeCounterNext), output)
+   where
+    empty = writeCounter == readCounter
+    full = readCounter == satSucc SatWrap writeCounter
+
+    readCounterNext
+      | not empty && readyInGo = satSucc SatWrap readCounter
+      | otherwise = readCounter
+
+    (writeCounterNext, writeOpGo)
+      | not full && isJust fifoInGo = (satSucc SatWrap writeCounter, (writeCounter,) <$> fifoInGo)
+      | otherwise                   = (writeCounter, Nothing)
+
+    fifoOutGo
+      | not empty = Just bramOutGo
+      | otherwise = Nothing
+
+
+    output = (readCounterNext, writeOpGo, fifoOutGo, not full)
