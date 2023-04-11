@@ -111,3 +111,15 @@ singleMasterInterconnect' config master slaves = (toMaster, bundle toSlaves)
     case divWithRemainder @(Regs a 8) @8 @7 of
       Dict ->
         f (master, unbundle slaves)
+
+timerWb ::
+  ( HiddenClockResetEnable dom
+  , KnownNat addrW
+  , 2 <= addrW
+  , KnownNat nBytes
+  , 1 <= nBytes) =>
+  Signal dom (WishboneM2S addrW nBytes (Bytes nBytes)) ->
+  Signal dom (WishboneS2M (Bytes nBytes))
+timerWb wbM2S = wbS2M
+ where
+  (cnt, wbS2M) = registerWb WishbonePriority (0 :: Unsigned 32) wbM2S $ Just . succ <$> cnt
