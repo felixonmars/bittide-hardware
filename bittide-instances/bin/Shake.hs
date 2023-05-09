@@ -34,6 +34,7 @@ import qualified Bittide.Instances.ClockControl as ClockControl
 import qualified Bittide.Instances.Counter as Counter
 import qualified Bittide.Instances.ElasticBuffer as ElasticBuffer
 import qualified Bittide.Instances.MVPs as MVPs
+import qualified Bittide.Instances.ProcessingElement as ProcessingElement
 import qualified Bittide.Instances.ScatterGather as ScatterGather
 import qualified Bittide.Instances.Si539xSpi as Si539xSpi
 import qualified Bittide.Instances.StabilityChecker as StabilityChecker
@@ -227,6 +228,7 @@ targets = map enforceValidTarget
   , defTarget 'ElasticBuffer.elasticBuffer5
   , (defTarget 'MVPs.clockControlDemo0) {targetHasXdc = True}
   , (defTarget 'MVPs.clockControlDemo1) {targetHasXdc = True}
+  , (defTarget 'ProcessingElement.vexRiscHello) {targetHasXdc = True}
   , defTarget 'ScatterGather.gatherUnit1K
   , defTarget 'ScatterGather.gatherUnit1KReducedPins
   , defTarget 'ScatterGather.scatterUnit1K
