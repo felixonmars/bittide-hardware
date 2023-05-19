@@ -17,5 +17,6 @@ members = [
   "firmware/examples/fdt-read",
   "firmware/examples/hello",
   "firmware/examples/axi-loopback",
+  "firmware/examples/smoltcp-example",
 ]
 resolver = "2"
