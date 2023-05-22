@@ -174,6 +174,11 @@ forceReset ::
   Reset dom
 forceReset force = unsafeFromHighPolarity (unsafeToHighPolarity hasReset .||. force)
 
+-- | Take a circuit and produce a `Bool` value that represents whether the sate is not in reset
+-- and enabled. I.e, whether the circuit is running.
+addEnabledSignal :: HiddenClockResetEnable dom => a -> (Signal dom Bool, a)
+addEnabledSignal a = (unsafeToLowPolarity hasReset .&&. fromEnable hasEnable, a)
+
 -- | Divide and round up.
 divRU :: Integral a => a -> a -> a
 divRU b a = (b + a - 1) `div` a

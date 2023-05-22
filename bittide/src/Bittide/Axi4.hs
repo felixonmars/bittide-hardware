@@ -14,74 +14,59 @@ import Clash.Prelude
 
 import Protocols
 import Protocols.Axi4.Stream
+import Data.Maybe
 
 import Bittide.Extra.Maybe
-
-type EndOfPacket = Bool
-type BufferFull = Bool
-
-data WbAxisRxBufferState fifoDepth nBytes = WbAxisRxBufferState
-  { readingFifo :: Bool
-  , packetLength :: Index (fifoDepth * nBytes + 1)
-  , writeCounter :: Index fifoDepth
-  , packetComplete :: Bool
-  , bufferFull :: Bool
-  } deriving (Generic, NFDataX)
+import Bittide.SharedTypes
 
 {-# NOINLINE axisFromByteStream #-}
 axisFromByteStream ::
   forall dom dataWidth idWidth destWidth userType .
   ( HiddenClockResetEnable dom
   , KnownNat dataWidth
-  , 1 <= dataWidth
-  , Eq userType
-  , NFDataX userType) =>
+  , 1 <= dataWidth) =>
   Circuit
     (Axi4Stream dom ('Axi4StreamConfig 1 idWidth destWidth) userType)
     (Axi4Stream dom ('Axi4StreamConfig dataWidth idWidth destWidth) userType)
-axisFromByteStream = Circuit (mealyB go initState)
+axisFromByteStream = Circuit (mealyB go initState . addEnabledSignal .bundle)
  where
-  initState :: (Index dataWidth, Vec (dataWidth - 1) (Unsigned 8, Bool, Bool), userType)
-  initState =
-    ( 0
-    , repeat initTempAxi
-    , deepErrorX "axisFromByteStream: Initial user signal is undefined."
-    )
-  initTempAxi =
-    ( 0
-    , False
-    , False
-    )
-  go state (Nothing, _) = (state, (Axi4StreamS2M{_tready = True}, Nothing))
-  go (oldCounter, storedBytes, prevUser) (Just Axi4StreamM2S{..}, Axi4StreamS2M{_tready}) = ((newCounter, nextStoredBytes, _tuser), (smallS2M, bigM2S))
+  initState :: (Vec (dataWidth - 1) (Unsigned 8, Bool, Bool))
+  initState = (repeat initTempAxi, False)
+  initTempAxi = (0, False, False)
+  go (storedBytes, _) (False, _) = (storedBytes, (Axi4StreamS2M{_tready = False}, Nothing))
+  go (storedBytes, storedTLast) (True, (Nothing, _)) = (storedBytes, (Axi4StreamS2M{_tready = True}, Nothing))
+  go (storedBytes, storedTLast) (True, (Just Axi4StreamM2S{..}, Axi4StreamS2M{_tready})) =
+    (nextStoredBytes, (Axi4StreamS2M{_tready = smallReady}, bigM2S))
    where
-    smallS2M = Axi4StreamS2M{_tready = smallReady}
     bigM2S
       | not upscaleDone = Nothing
       | otherwise       = Just $ Axi4StreamM2S
         { _tdata = newData
         , _tkeep = newKeeps
         , _tstrb = newStrobes
-        , _tuser = if oldCounter > 0 then prevUser else _tuser
+        , _tuser = _tuser
         , _tid   = _tid
         , _tdest = _tdest
-        , _tlast = _tlast}
-    (newData, newKeeps, newStrobes) = unzip3 intermediateBytes
+        , _tlast = _tlast
+        }
 
-    userValid = oldCounter == 0 || prevUser == _tuser
-    upscaleDone = oldCounter == maxBound || not userValid || _tlast
-    smallReady  = not upscaleDone || _tready
-    newCounter
-      | upscaleDone && _tready && _tready = 0
-      | upscaleDone = oldCounter
-      | otherwise   = satSucc SatWrap oldCounter
-
-    intermediateBytes = replace oldCounter (head _tdata, head _tkeep, head _tstrb)
-      (storedBytes :< initTempAxi)
+    (newData, newKeeps, newStrobes) = unzip3 $ takeI storedBytes
+    upscaleDone = newKeeps == repeat True || storedTLast
+    smallReady  = upscaleDone || _tready
+    interMediateBytes0 = if smallReady then repeat Nothing else take (SNat @dataWidth) storedBytes
+    intermediateBytes = compressVec (interMediateBytes0 ++ zip3 (orNothing <$> _tdata <*> _tkeep) _tkeep _tstrobe)
 
     nextStoredBytes
-      | upscaleDone && _tready = repeat initTempAxi
-      | otherwise              = init intermediateBytes
+      | smallReady  = initState
+      | upscaleDone = storedBytes
+      | otherwise   = tail intermediateBytes
+
+compressVec :: KnownNat n => Vec n (Maybe a) -> Vec n (Maybe a)
+compressVec = vfold (const prefLeft)
+ where
+  prefLeft y xs  = let (y',xs') = mapAccumL justLeft y xs in xs' :< y'
+  justLeft a b = if isJust a then (a,b) else (b,a)
+
 
 {-# NOINLINE axisToByteStream #-}
 axisToByteStream ::

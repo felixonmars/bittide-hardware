@@ -32,6 +32,7 @@ import Bittide.Axi4
 import Bittide.Extra.Maybe
 import Bittide.SharedTypes
 import Tests.Shared
+import Clash.Debug
 
 import qualified Data.List as L
 import qualified GHC.TypeNats as TN
@@ -109,7 +110,7 @@ axisFromByteStreamUnchangedPackets = property $ do
         axiSlave :: Circuit (Axi4Stream System (BasicAxiConfig busWidth) ()) (Axi4Stream System (BasicAxiConfig busWidth) ())
         axiSlave = let ackSignal = fromList (cycle repeatingReadyList) in
           Circuit
-          (\(fwd, _) -> (Axi4StreamS2M <$> ackSignal, mux ackSignal fwd (pure Nothing)))
+          (\(fwd, _) -> (Axi4StreamS2M <$> ackSignal, fmap traceShowId $ mux ackSignal fwd (pure Nothing)))
         maxSimDuration = 100 + ((1 + sum packetLengths) * L.length repeatingReadyList)
         axiResult = catMaybes . L.take maxSimDuration $ wcre $
           sampleC def (driveC def axiStream |> axisFromByteStream |> axiSlave)
