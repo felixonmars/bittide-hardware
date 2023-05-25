@@ -5,7 +5,6 @@
 
 // #![feature(alloc_error_handler)]
 
-use core::fmt::Write;
 #[cfg(not(test))]
 use riscv_rt::entry;
 
@@ -15,7 +14,6 @@ mod time;
 mod axi_buffers;
 use bittide_sys::uart::Uart;
 use bittide_sys::panic_handler::set_panic_handler_uart;
-use soft_loopback::Loopback;
 #[cfg(feature = "std")]
 #[allow(dead_code)]
 mod utils;
@@ -26,7 +24,7 @@ use axi_ethernet::AxiEthernet;
 use smoltcp::iface::{Config, Interface, SocketSet};
 use smoltcp::phy::Medium;
 use smoltcp::socket::tcp;
-use smoltcp::time::{Duration, Instant};
+use smoltcp::time::{Duration};
 use smoltcp::wire::{EthernetAddress, IpAddress, IpCidr};
 
 const UART_ADDR:usize = 0x4000_0000;
@@ -44,20 +42,21 @@ fn main() -> !{
     unsafe{ set_panic_handler_uart(panic_uart)};
 
     // Initialize and test clock
-    let mut clock = time::Clock::new(TIME_ADDR, 25*10^6);
+    let mut clock = time::Clock::new(TIME_ADDR, 125*10^6);
 
     // Create interface
     let mut config = Config::new();
     let mut device = AxiEthernet::new(Medium::Ethernet, RX_AXI_ADDR as *mut u8, TX_AXI_ADDR as *mut u8, RX_BUFFER_SIZE);
+
     // let mut device = Loopback::new(Medium::Ethernet);
     writeln!(uart, "Device: {:?}", device).unwrap();
     writeln!(uart, "Clock: {:?}", clock).unwrap();
     config.hardware_addr = Some(EthernetAddress([0x02, 0x00, 0x00, 0x00, 0x00, 0x01]).into());
 
-    let mut iface = Interface::new(config, &mut device);
+    let mut iface: Interface = Interface::new(config, &mut device);
     iface.update_ip_addrs(|ip_addrs| {
         ip_addrs
-            .push(IpCidr::new(IpAddress::v4(127, 0, 0, 1), 8))
+            .push(IpCidr::new(IpAddress::v4(192, 168, 1, 101), 8))
             .unwrap();
     });
 
@@ -90,8 +89,7 @@ fn main() -> !{
     let mut did_listen = false;
     let mut did_connect = false;
     let mut done = false;
-    while !done && clock.elapsed() < Instant::from_millis(10_000) {
-        writeln!(uart, "Ticks: {:?}, time: {}ms", clock.elapsed_ticks(), clock.elapsed().total_millis()).unwrap();
+    while !done {
         iface.poll(clock.elapsed(), &mut device, &mut sockets);
 
         let mut socket = sockets.get_mut::<tcp::Socket>(server_handle);
@@ -109,7 +107,6 @@ fn main() -> !{
                 socket.recv(|buffer| { (buffer.len(), str::from_utf8(buffer).unwrap()) })
             );
             socket.close();
-            done = true;
         }
 
         let mut socket = sockets.get_mut::<tcp::Socket>(client_handle);
@@ -118,7 +115,7 @@ fn main() -> !{
             if !did_connect {
                 _ = writeln!(uart,"connecting");
                 socket
-                    .connect(cx, (IpAddress::v4(127, 0, 0, 1), 1234), 65000)
+                    .connect(cx, (IpAddress::v4(192,168,1,100), 1234), 1234)
                     .unwrap();
                 did_connect = true;
             }
@@ -133,8 +130,8 @@ fn main() -> !{
         match iface.poll_delay(clock.elapsed(), &sockets) {
             Some(Duration::ZERO) => _ = writeln!(uart,"resuming"),
             Some(delay) => {
-                writeln!(uart,"sleeping for {} us", delay.micros()).unwrap();
-                clock.advance(Duration::from_micros(1)) // clock.advance(delay)
+                writeln!(uart,"sleeping for {} ms", delay.millis()).unwrap();
+                clock.advance(delay)
             }
             None => clock.advance(Duration::from_micros(1)),
         }
