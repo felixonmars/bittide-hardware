@@ -137,7 +137,7 @@ wbAxisRxBufferCircuit ::
   -- | Depth of the buffer, each entry in the buffer stores `nBytes` bytes.
   SNat fifoDepth ->
   Circuit
-    (Wishbone dom 'Standard wbAddrW (Bytes nBytes), Axi4Stream dom conf ())
+    (Wishbone dom 'Standard wbAddrW (Bytes nBytes), Axi4Stream dom conf Bool)
     (CSignal dom (EndOfPacket, BufferFull))
 wbAxisRxBufferCircuit depth = case cancelMulDiv @nBytes @8 of
   Dict -> Circuit $ \((wbM2S, axiM2S),_) -> do
@@ -158,7 +158,7 @@ wbAxisRxBufferCircuit depth = case cancelMulDiv @nBytes @8 of
 --
 -- The external status clear signals clear on True, set to (False, False) if not used.
 wbAxisRxBuffer ::
-  forall dom wbAddrW nBytes fifoDepth conf axiUserType .
+  forall dom wbAddrW nBytes fifoDepth conf .
   ( HiddenClockResetEnable dom
   , KnownNat wbAddrW, 2 <= wbAddrW
   , KnownNat nBytes, 1 <= nBytes
@@ -170,7 +170,7 @@ wbAxisRxBuffer ::
   -- | Wishbone master bus.
   "wbM2S" ::: Signal dom (WishboneM2S wbAddrW nBytes (Bytes nBytes)) ->
   -- | Axi4 Stream master bus.
-  "axisM2S" ::: Signal dom (Maybe (Axi4StreamM2S conf axiUserType)) ->
+  "axisM2S" ::: Signal dom (Maybe (Axi4StreamM2S conf Bool)) ->
   -- | External controls to clear bits in the status register.
   "clearinterrupts" ::: Signal dom (EndOfPacket, BufferFull) ->
   -- |
@@ -200,7 +200,7 @@ wbAxisRxBuffer SNat wbM2S axisM2S statusClearSignal = (wbS2M, axisS2M, statusReg
   go ::
     WbAxisRxBufferState fifoDepth nBytes ->
     ( WishboneM2S wbAddrW nBytes (Bytes nBytes)
-    , Maybe (Axi4StreamM2S conf axiUserType)
+    , Maybe (Axi4StreamM2S conf Bool)
     , Bytes nBytes, (EndOfPacket, BufferFull)
     ) ->
     ( WbAxisRxBufferState fifoDepth nBytes
@@ -244,10 +244,12 @@ wbAxisRxBuffer SNat wbM2S axisM2S statusClearSignal = (wbS2M, axisS2M, statusReg
       )
 
     -- Next state
+    (tLast, tUser) = maybe (False, False) (\a -> (_tlast a, _tuser a)) maybeAxisM2S
     (nextPacketComplete, nextBufferFull)
       | wbAcknowledge && writeEnable && internalAddress == statusAddress
         = unpack $ (\ a b -> a `xor` (a .&. b)) statusBV (resize writeData)
-      | axisHandshake = (packetComplete || maybe False _tlast maybeAxisM2S, bufferFull || writeCounter == maxBound)
+      | axisHandshake && tLast && tUser = (False, False)
+      | axisHandshake = (tLast, writeCounter == maxBound)
       | otherwise = unpack $ statusBV `xor` pack clearStatus
 
     nextWriteCounter
@@ -258,9 +260,11 @@ wbAxisRxBuffer SNat wbM2S axisM2S statusClearSignal = (wbS2M, axisS2M, statusReg
     bytesInStream = maybe (0 :: Index (nBytes + 1)) (leToPlus @1 @nBytes popCountBV . pack ._tkeep) maybeAxisM2S
 
     nextPacketLength
-      | wbAcknowledge && writeEnable && internalAddress == packetLengthAddress = unpack $ resize writeData
-      | axisHandshake                                         = satAdd SatBound packetLength (bitCoerce $ resize bytesInStream)
-      | otherwise                                             = packetLength
+      | wbAcknowledge && writeEnable && internalAddress == packetLengthAddress
+        = unpack $ resize writeData
+      | axisHandshake && tLast && tUser = 0
+      | axisHandshake                     = satAdd SatBound packetLength (bitCoerce $ resize bytesInStream)
+      | otherwise                         = packetLength
 
     newState = WbAxisRxBufferState
       { readingFifo = nextReadingFifo
@@ -270,7 +274,6 @@ wbAxisRxBuffer SNat wbM2S axisM2S statusClearSignal = (wbS2M, axisS2M, statusReg
       , bufferFull = nextBufferFull
       }
 
-type AxiStreamBytesOnly nBytes = 'Axi4StreamConfig nBytes 0 0
 wbToAxiTx ::
   forall dom addrW nBytes .
  ( KnownNat addrW
@@ -278,7 +281,7 @@ wbToAxiTx ::
  , KnownNat nBytes) =>
   Circuit
     (Wishbone dom 'Standard addrW (Bytes nBytes))
-    (Axi4Stream dom (AxiStreamBytesOnly nBytes) ())
+    (Axi4Stream dom ('Axi4StreamConfig nBytes 0 0) ())
 wbToAxiTx = case cancelMulDiv @nBytes @8 of
   Dict -> Circuit $ unbundle . fmap go . bundle
  where
@@ -303,7 +306,7 @@ wbToAxiTx = case cancelMulDiv @nBytes @8 of
     _tdest = deepErrorX "wbToAxiStream: _tdest undefined"
     _tuser = ()
     _tdata = reverse $ unpack writeData
-    axiM2S :: Maybe (Axi4StreamM2S (AxiStreamBytesOnly nBytes) ())
+    axiM2S :: Maybe (Axi4StreamM2S ('Axi4StreamConfig nBytes 0 0) ())
     axiM2S = orNothing (masterActive && not err)
       Axi4StreamM2S{_tdata, _tkeep, _tstrb, _tlast, _tid, _tdest, _tuser}
 
@@ -313,8 +316,8 @@ axiFifo ::
   , KnownNat nBytes) =>
   SNat fifoDepth ->
   Circuit
-    (Axi4Stream dom (AxiStreamBytesOnly nBytes) ())
-    (Axi4Stream dom (AxiStreamBytesOnly nBytes) ())
+    (Axi4Stream dom ('Axi4StreamConfig nBytes 0 0) ())
+    (Axi4Stream dom ('Axi4StreamConfig nBytes 0 0) ())
 axiFifo fifoDepth = Circuit go
  where
   go (axiLeftM, axiRightS) = ((\ (Ack b) -> Axi4StreamS2M b) <$> dfS, axiRightM)
@@ -328,8 +331,8 @@ axiStreamPacketFifo ::
   , KnownNat nBytes) =>
   SNat fifoDepth ->
   Circuit
-    (Axi4Stream dom (AxiStreamBytesOnly nBytes) ())
-    (Axi4Stream dom (AxiStreamBytesOnly nBytes) ())
+    (Axi4Stream dom ('Axi4StreamConfig nBytes 0 0) ())
+    (Axi4Stream dom ('Axi4StreamConfig nBytes 0 0) ())
 axiStreamPacketFifo fifoDepth = Circuit goCircuit
  where
   goCircuit (axiInM2S, axiOutS2M) = (Axi4StreamS2M <$> consumeAxiIn, axiOutM2S)
@@ -342,9 +345,9 @@ axiStreamPacketFifo fifoDepth = Circuit goCircuit
   goMealy packetComplete (fifoOutGo, Axi4StreamS2M fifoReadyGo, axiM2SGo) =
     (packetCompleteNext, (consumeFifoGo, consumeAxiGo))
    where
-    consumeFifoGo = packetComplete || not fifoReadyGo
+    consumeFifoGo = packetComplete
     consumeAxiGo = not packetComplete && fifoReadyGo
     packetCompleteNext =
       if packetComplete
       then isJust fifoOutGo
-      else fifoReadyGo && maybe False _tlast axiM2SGo
+      else maybe False _tlast axiM2SGo

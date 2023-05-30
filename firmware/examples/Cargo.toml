@@ -17,5 +17,6 @@ members = [
   "hello",
   "axi-loopback",
   "smoltcp-example",
+  "smoltcp-echo",
 ]
 resolver = "2"
