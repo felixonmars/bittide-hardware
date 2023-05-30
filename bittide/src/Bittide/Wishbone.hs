@@ -124,19 +124,28 @@ singleMasterInterconnect' config master slaves = (toMaster, bundle toSlaves)
 unsafeToDf :: Circuit (CSignal dom (Maybe a)) (Df dom a)
 unsafeToDf = Circuit $ \ (CSignal cSig, _) -> (CSignal $ pure (), maybeToData <$> cSig)
 
--- | `Circuit` version of `uart`.
+-- | 'Df' version of 'uart'.
 uartDf ::
   (HiddenClockResetEnable dom, ValidBaud dom baud) =>
   SNat baud ->
+  -- | Left side of circuit: word to send, receive bit
+  -- Right side of circuit: received word, transmit bit
   Circuit
-    (Df dom (BitVector 8), CSignal dom Bit)
-    (CSignal dom (Maybe (BitVector 8)), CSignal dom Bit)
+    ( Df dom (BitVector 8)
+    , CSignal dom Bit
+    )
+    ( CSignal dom (Maybe (BitVector 8))
+    , CSignal dom Bit
+    )
 uartDf baud = Circuit go
  where
-  go ((request, ~(CSignal rxBit)),_) = ((Ack <$> ack, CSignal $ pure ()), (CSignal received, CSignal txBit))
+  go ((request, ~(CSignal rxBit)),_) =
+    ( (Ack <$> ack, CSignal $ pure ())
+    , (CSignal received, CSignal txBit) )
    where
     (received, txBit, ack) = uart baud rxBit (dataToMaybe <$> request)
 
+-- |
 uartWb ::
   forall dom addrW nBytes baudRate transmitBufferDepth receiveBufferDepth .
   ( HiddenClockResetEnable dom, ValidBaud dom baudRate
@@ -146,8 +155,13 @@ uartWb ::
   , KnownNat addrW
   , KnownNat nBytes, 1 <= nBytes
   ) =>
+  -- | Recommended value: 16. This seems to be a good balance between resource
+  -- usage and usability.
   SNat transmitBufferDepth ->
+  -- | Recommended value: 16. This seems to be a good balance between resource
+  -- usage and usability.
   SNat receiveBufferDepth ->
+  -- | Valid baud rates are constrained by @clash-cores@'s 'ValidBaud' constraint.
   SNat baudRate ->
   Circuit
     (Wishbone dom 'Standard addrW (Bytes nBytes), CSignal dom Bit)
@@ -158,59 +172,71 @@ uartWb txDepth@SNat rxDepth@SNat baud = circuit $ \(wb, uartRx) -> do
   (rxFifoIn, uartTx) <- uartDf baud -< (txFifoOut, uartRx)
   (rxFifoOut, _rx') <- fifoWithMeta rxDepth <| unsafeToDf -< rxFifoIn
   idC -< (uartTx, uartStatus)
-
-wbToDf ::
-  forall dom addrW nBytes txFifoDepth .
-  ( KnownNat nBytes, 1 <= nBytes, KnownNat addrW, 2 <= addrW) =>
-  Circuit
-    (Wishbone dom 'Standard addrW (Bytes nBytes), Df dom (BitVector 8), CSignal dom (FifoMeta txFifoDepth))
-    (Df dom (BitVector 8), CSignal dom (Bool, Bool))
-wbToDf = Circuit $
-  bimap (third CSignal . unbundle) (second CSignal . unbundle) .
-  unbundle .
-  fmap go .
-  bundle .
-  bimap (bundle . third unCSignal) (bundle . second unCSignal)
  where
-  third f (a, b, c) = (a, b, f c)
-  unCSignal (CSignal s) = s
-  go ((WishboneM2S{..}, dataToMaybe -> rxData, fifoFull -> txFull), (Ack txAck, _))
-    -- not in cycle
-    | not (busCycle && strobe) = ((emptyWishboneS2M, Ack False, ()), (NoData, status))
-    -- illegal addr
-    | not addrLegal = ((emptyWishboneS2M { err = True }, Ack False, ()), (NoData, status))
-    -- read at 0
-    | not writeEnable && internalAddr == 0 =
-      ( ( (emptyWishboneS2M @())
-          {acknowledge = True, readData = resize $ fromMaybe 0 rxData}, Ack True, ())
-        , (NoData, status)
+  wbToDf ::
+    forall dom addrW nBytes txFifoDepth .
+    ( KnownNat nBytes, 1 <= nBytes, KnownNat addrW, 2 <= addrW) =>
+    Circuit
+      ( Wishbone dom 'Standard addrW (Bytes nBytes)
+      , Df dom (BitVector 8)
+      , CSignal dom (FifoMeta txFifoDepth)
       )
-    -- write at 0
-    | writeEnable && internalAddr == 0 =
-      ( ( (emptyWishboneS2M @())
-          {acknowledge = txAck , readData = invalidReq}, Ack False, ())
-        , (Data $ resize writeData, status)
+      ( Df dom (BitVector 8)
+      , CSignal dom (Bool, Bool) -- (rxEmpty, txFull)
       )
-    -- read at 1
-    | not writeEnable && internalAddr == 1 =
-      ( ( (emptyWishboneS2M @())
-          {acknowledge = True, readData = resize $ pack status}, Ack False, ())
-        , (NoData, status)
-      )
-    | otherwise = ((emptyWishboneS2M { err = True }, Ack False, ()), (NoData, status))
+  wbToDf = Circuit $
+    bimap (third CSignal . unbundle) (second CSignal . unbundle) .
+    unbundle .
+    fmap go .
+    bundle .
+    bimap (bundle . third unCSignal) (bundle . second unCSignal)
    where
-    (alignedAddr, alignment) = split @_ @(addrW - 2) @2 addr
-    internalAddr = bitCoerce $ resize alignedAddr :: Index 2
-    addrLegal = alignedAddr <= 1 && alignment == 0
-    status = (not $ isJust rxData, txFull)
-    invalidReq = deepErrorX
-      [i|"uartWb: Invalid request.
-        BUS: {busCycle}
-        STR: {strobe}
-        ADDR: {addr}
-        WE:{writeEnable}
-        ACK:{acknowledge}
-        ERR:{err}"|]
+    third f (a, b, c) = (a, b, f c)
+    unCSignal (CSignal s) = s
+    go ((WishboneM2S{..}, dataToMaybe -> rxData, fifoFull -> txFull), (Ack txAck, _))
+      -- not in cycle
+      | not (busCycle && strobe)
+      = ( (emptyWishboneS2M { readData = invalidReq }, Ack False, ())
+        , (NoData, status)
+        )
+      -- illegal addr
+      | not addrLegal
+      = ( (emptyWishboneS2M { err = True, readData = invalidReq }, Ack False, ())
+        , (NoData, status)
+        )
+      -- read at 0
+      | not writeEnable && internalAddr == 0 =
+        ( ( (emptyWishboneS2M @())
+            {acknowledge = True, readData = resize $ fromMaybe 0 rxData}, Ack True, ())
+          , (NoData, status)
+        )
+      -- write at 0
+      | writeEnable && internalAddr == 0 =
+        ( ( (emptyWishboneS2M @())
+            {acknowledge = txAck , readData = invalidReq}, Ack False, ())
+          , (Data $ resize writeData, status)
+        )
+      -- read at 1
+      | not writeEnable && internalAddr == 1 =
+        ( ( (emptyWishboneS2M @())
+            {acknowledge = True, readData = resize $ pack status}, Ack False, ())
+          , (NoData, status)
+        )
+      | otherwise = ((emptyWishboneS2M { err = True }, Ack False, ()), (NoData, status))
+     where
+      (alignedAddr, alignment) = split @_ @(addrW - 2) @2 addr
+      internalAddr = bitCoerce $ resize alignedAddr :: Index 2
+      addrLegal = alignedAddr <= 1 && alignment == 0
+      rxEmpty = not $ isJust rxData
+      status = (rxEmpty, txFull)
+      invalidReq = deepErrorX
+        [i|uartWb: Invalid request.
+          BUS: {busCycle}
+          STR: {strobe}
+          ADDR: {addr}
+          WE:{writeEnable}
+          ACK:{acknowledge}
+          ERR:{err}|]
 
 
 -- | State record for the FIFO circuit.
@@ -236,7 +262,7 @@ fifoWithMeta ::
   -- | The depth of the FIFO, should be at least 1.
   SNat depth ->
   -- | Consumes `Df dom a`, produces `Df dom a` along with ready signal and data count.
-    Circuit (Df dom a) (Df dom a, CSignal dom (FifoMeta depth))
+  Circuit (Df dom a) (Df dom a, CSignal dom (FifoMeta depth))
 fifoWithMeta depth@SNat = Circuit circuitFunction
  where
   circuitFunction (fifoIn, (readyIn, _)) = (Ack <$> readyOut, (fifoOut, CSignal fifoMeta))
