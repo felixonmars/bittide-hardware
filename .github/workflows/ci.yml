@@ -367,7 +367,6 @@ jobs:
         shell: git-nix-shell {0} --pure
     container:
       image: ghcr.io/clash-lang/nixos-bittide-hardware:2023-02-01
-    needs: [build]
 
     steps:
       - name: Checkout
@@ -402,10 +401,6 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: cargo-cache-cachebust-2-${{ hashFiles('Cargo.lock') }}
-
-      - name: Build program-stream executable
-        run: |
-          cabal build program-stream
 
       - name: Running Tests
         run: |

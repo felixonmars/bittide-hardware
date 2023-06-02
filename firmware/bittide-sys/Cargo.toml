@@ -22,5 +22,4 @@ object = { version = "0.28", features = ["write"] }
 libc = "0.2"
 test-strategy = "0.2.0"
 rand = "0.8"
-lazy_static = "1.0"
-tempfile = "3"
+bittide-ctrl = { path = "../../bittide-ctrl" }

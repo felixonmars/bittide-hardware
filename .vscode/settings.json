@@ -31,6 +31,8 @@
     "editor.formatOnSave": false
   },
   "rust-analyzer.linkedProjects": [
-    "firmware/examples/Cargo.toml"
-  ]
+    "Cargo.toml",
+    "firmware/examples/Cargo.toml",
+  ],
+  "rust-analyzer.check.allTargets": false
 }
