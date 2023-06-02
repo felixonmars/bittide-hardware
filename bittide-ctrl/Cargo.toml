@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 object = { version = "0.28" }
 derive_more = "0.99"
+serialport = "4.2.1"
