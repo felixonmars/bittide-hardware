@@ -14,5 +14,8 @@ codegen-units = 1
 [workspace]
 members = [
   "bootloader",
+
+  "examples/fdt-read",
+  "examples/hello",
 ]
 resolver = "2"

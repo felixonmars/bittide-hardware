@@ -2,10 +2,8 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-
 [workspace]
 members = [
-  "firmware/bittide-sys",
   "bittide-ctrl",
 ]
 resolver = "2"

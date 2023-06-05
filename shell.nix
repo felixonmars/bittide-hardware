@@ -13,6 +13,8 @@ pkgs.mkShell {
     # pkgs.haskellPackages.bittide-extra.env.nativeBuildInputs ++
     #
     [
+      pkgs.buildPackages.systemd
+
       pkgs.buildPackages.cabal-install
       pkgs.buildPackages.dtc
       pkgs.buildPackages.gcc

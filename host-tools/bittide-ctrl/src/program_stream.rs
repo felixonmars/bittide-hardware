@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022 Google LLC
+//
+// SPDX-License-Identifier: Apache-2.0
+
 use derive_more::From;
 use object::{elf, ObjectSegment};
 use object::{Architecture, Endianness, Object, ObjectKind, SegmentFlags};
