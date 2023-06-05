@@ -63,6 +63,11 @@ unsafe fn boot_uart(uart: &mut Uart, mem_config: &MemoryConfiguration) -> ! {
             "program header from stream is not valid with the current memory configuration",
         )
         .unwrap();
+
+        // we do a loop here because that avoids going through
+        // the panic handler (if any, since panic=abort), which
+        // just loops anyway.
+        #[allow(clippy::empty_loop)]
         loop {}
     }
 
@@ -75,6 +80,11 @@ unsafe fn boot_uart(uart: &mut Uart, mem_config: &MemoryConfiguration) -> ! {
                 "segment header from stream is not valid with the current memory configuration",
             )
             .unwrap();
+
+            // we do a loop here because that avoids going through
+            // the panic handler (if any, since panic=abort), which
+            // just loops anyway.
+            #[allow(clippy::empty_loop)]
             loop {}
         }
 
@@ -97,5 +107,9 @@ unsafe fn boot_uart(uart: &mut Uart, mem_config: &MemoryConfiguration) -> ! {
         }
     }
 
+    // we do a loop here because that avoids going through
+    // the panic handler (if any, since panic=abort), which
+    // just loops anyway.
+    #[allow(clippy::empty_loop)]
     loop {}
 }
