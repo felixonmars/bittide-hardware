@@ -30,6 +30,8 @@ import Clash.Driver.Manifest
 import Data.List (isInfixOf)
 import Data.String.Interpolate (__i)
 import System.FilePath ((</>), dropFileName)
+import System.Environment
+import GHC.IO
 
 -- | Read a timing summary and determine whether it met timing.
 meetsTiming :: FilePath -> IO Bool
@@ -75,7 +77,17 @@ mkBaseTcl ::
   IO String
 mkBaseTcl outputDir LocatedManifest{lmPath} = do
   connector <- tclConnector
-  let topEntityDir = dropFileName lmPath
+  let
+    topEntityDir = dropFileName lmPath
+    ethDir = unsafePerformIO $ getEnv "VERILOG_ETHERNET_SRC"
+    ethFiles = unwords $ fmap (ethDir </>)
+      [ "lib/axis/rtl"
+      , "rtl/eth_mac_1g_fifo.v"
+      , "rtl/eth_mac_1g.v"
+      , "rtl/axis_gmii_rx.v"
+      , "rtl/axis_gmii_tx.v"
+      , "rtl/lfsr.v"
+      ]
 
   pure [__i|
     set_msg_config -severity {CRITICAL WARNING} -new_severity ERROR
@@ -87,6 +99,7 @@ mkBaseTcl outputDir LocatedManifest{lmPath} = do
     clash::readHdl
     clash::readXdc {early normal late}
     set_property TOP $clash::topEntity [current_fileset]
+    add_files -quiet -verbose {#{ethFiles}}
   |]
 
 mkSynthesisTcl ::

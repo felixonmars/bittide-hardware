@@ -98,6 +98,7 @@ library
     Bittide.Instances.Counter
     Bittide.Instances.Domains
     Bittide.Instances.ElasticBuffer
+    Bittide.Instances.Ethernet
     Bittide.Instances.Hacks
     Bittide.Instances.MVPs
     Bittide.Instances.ProcessingElement
@@ -105,6 +106,7 @@ library
     Bittide.Instances.Si539xSpi
     Bittide.Instances.StabilityChecker
     Bittide.Instances.Synchronizer
+
 
     Clash.Shake.Extra
     Clash.Shake.Vivado

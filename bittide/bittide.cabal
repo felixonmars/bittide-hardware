@@ -111,6 +111,7 @@ library
     Bittide.ClockControl.StabilityChecker
     Bittide.Counter
     Bittide.DoubleBufferedRam
+    Bittide.Ethernet.Mac
     Bittide.ElasticBuffer
     Bittide.Link
     Bittide.Node

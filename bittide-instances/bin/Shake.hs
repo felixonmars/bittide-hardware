@@ -28,12 +28,14 @@ import qualified Bittide.Instances.Calendar as Calendar
 import qualified Bittide.Instances.ClockControl as ClockControl
 import qualified Bittide.Instances.Counter as Counter
 import qualified Bittide.Instances.ElasticBuffer as ElasticBuffer
+import qualified Bittide.Instances.Ethernet as Ethernet
 import qualified Bittide.Instances.MVPs as MVPs
 import qualified Bittide.Instances.ProcessingElement as ProcessingElement
 import qualified Bittide.Instances.ScatterGather as ScatterGather
 import qualified Bittide.Instances.Si539xSpi as Si539xSpi
 import qualified Bittide.Instances.StabilityChecker as StabilityChecker
 import qualified Bittide.Instances.Synchronizer as Synchronizer
+
 import qualified Clash.Util.Interpolate as I
 import qualified Language.Haskell.TH as TH
 import qualified System.Directory as Directory
@@ -84,11 +86,13 @@ targets =
   , 'ClockControl.callisto3
   , 'Counter.counterReducedPins
   , 'ElasticBuffer.elasticBuffer5
+  , 'Ethernet.ethMac1G
   , 'MVPs.clockControlDemo0
   , 'MVPs.clockControlDemo1
   , 'ProcessingElement.vexRiscAxiLoopback
-  , 'ProcessingElement.vexRiscUartEcho
+  , 'ProcessingElement.vexRiscExposedAxi
   , 'ProcessingElement.vexRiscTcpLoopback
+  , 'ProcessingElement.vexRiscUartEcho
   , 'ScatterGather.gatherUnit1K
   , 'ScatterGather.gatherUnit1KReducedPins
   , 'ScatterGather.scatterUnit1K

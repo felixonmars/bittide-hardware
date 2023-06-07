@@ -9,6 +9,8 @@ import Clash.Explicit.Prelude
 
 createDomain vXilinxSystem{vName="Basic25", vPeriod=hzToPeriod 25e6}
 createDomain vXilinxSystem{vName="Basic125", vPeriod= hzToPeriod 125e6}
+createDomain vXilinxSystem{vName="Basic125A", vPeriod= hzToPeriod 125e6}
+createDomain vXilinxSystem{vName="Basic125B", vPeriod= hzToPeriod 125e6}
 createDomain vXilinxSystem{vName="Basic199", vPeriod=hzToPeriod 199e6}
 createDomain vXilinxSystem{vName="Basic200", vPeriod=hzToPeriod 200e6}
 createDomain vXilinxSystem{vName="Basic200A", vPeriod=hzToPeriod 200e6}
