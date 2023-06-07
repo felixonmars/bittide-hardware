@@ -7,7 +7,7 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Bittide.Transceiver (transceiverPrbs) where
+module Bittide.Transceiver (transceiverPrbs, transceiverPrbsN) where
 import qualified Clash.Prelude as C
 import Clash.Explicit.Prelude
 import Clash.Cores.Xilinx.GTH hiding (ChansUsed)
@@ -26,19 +26,47 @@ concatBvs = bitCoerce
 splitBvs :: (KnownNat n, KnownNat m) => BitVector (n*m) -> Vec n (BitVector m)
 splitBvs = bitCoerce
 
-
-transceiverPrbs
-  :: (KnownDomain freeclk, KnownDomain tx, KnownDomain rx,_)
-  => String -- ^ channel, example X0Y18
-  -> String -- ^ clkPath, example clk0-2
-  -> Clock refclk
+transceiverPrbsN
+  :: (KnownNat chansUsed, KnownDomain freeclk, KnownDomain tx, KnownDomain rx,_)
+  => Clock refclk
   -> Clock freeclk
-  -> Signal rxS (BitVector 1)
-  -> Signal rxS (BitVector 1)
 
   -> Signal freeclk Bool  -- rst all
   -> Signal freeclk Bool  -- rst txStim
   -> Signal freeclk Bool  -- rst prbsChk
+
+  -> Vec chansUsed String
+  -> Vec chansUsed String
+
+  -> Vec chansUsed (Signal rxS (BitVector 1))
+  -> Vec chansUsed (Signal rxS (BitVector 1))
+
+  -> Vec chansUsed
+       ( Clock tx
+       , Clock rx
+       , Signal txS (BitVector 1)
+       , Signal txS (BitVector 1)
+       , Signal rx Bool  -- link up
+       )
+transceiverPrbsN refclk freeclk rst_all rst_txStim rst_prbsChk chanNms clkPaths rxns rxps =
+  zipWith4 (transceiverPrbs refclk freeclk rst_all rst_txStim rst_prbsChk) chanNms clkPaths rxns rxps
+
+transceiverPrbs
+  :: (KnownDomain freeclk, KnownDomain tx, KnownDomain rx,_)
+
+  => Clock refclk
+  -> Clock freeclk
+
+  -> Signal freeclk Bool  -- rst all
+  -> Signal freeclk Bool  -- rst txStim
+  -> Signal freeclk Bool  -- rst prbsChk
+
+  -> String -- ^ channel, example X0Y18
+  -> String -- ^ clkPath, example clk0-2
+
+  -> Signal rxS (BitVector 1)
+  -> Signal rxS (BitVector 1)
+
 
   -> ( Clock tx
      , Clock rx
@@ -46,7 +74,7 @@ transceiverPrbs
      , Signal txS (BitVector 1)
      , Signal rx Bool  -- link up
      )
-transceiverPrbs chan clkPath gtrefclk freeclk rxn rxp rst_all_btn rst_txStim rst_prbsChk
+transceiverPrbs gtrefclk freeclk rst_all_btn rst_txStim rst_prbsChk chan clkPath rxn rxp
  = (tx_clk, rx_clk, txn, txp, link_up)
  where
   (txn, txp, tx_clk, rx_clk, rx_data, reset_tx_done, reset_rx_done, tx_active)
