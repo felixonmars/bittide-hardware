@@ -13,3 +13,4 @@ edition = "2021"
 object = { version = "0.28" }
 derive_more = "0.99"
 serialport = "4.2.1"
+clap = { version = "4.2.7", features = ["derive"] }

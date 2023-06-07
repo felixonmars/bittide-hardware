@@ -107,9 +107,9 @@ unsafe fn boot_uart(uart: &mut Uart, mem_config: &MemoryConfiguration) -> ! {
         }
     }
 
-    // we do a loop here because that avoids going through
-    // the panic handler (if any, since panic=abort), which
-    // just loops anyway.
+    // This should not be reachable because of the unconditional jump
+    // above.
+
     #[allow(clippy::empty_loop)]
     loop {}
 }
