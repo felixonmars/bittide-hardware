@@ -24,7 +24,7 @@ import qualified Clash.Netlist.BlackBox.Types as N
 import Clash.Netlist.BlackBox.Util (exprToString)
 
 import Clash.Cores.Xilinx.Internal
-  (defIpConfig, IpConfig(properties), property, renderTcl, TclPurpose(..))
+  (defIpConfig, IpConfig(properties), property, renderTcl, TclPurpose(..), BraceTcl(..))
 import Data.String (fromString)
 
 gthCoreBBF :: HasCallStack => BlackBoxFunction
@@ -174,7 +174,7 @@ gthCoreTclBBTF bbCtx
 
     , property @Text "RX_REFCLK_FREQUENCY"                   "200"
     -- .X_REFCLK_SOURCE syntax: X0Yn clk[0,1]([+,-]q
-    , property @Text "RX_REFCLK_SOURCE"                      (fromString $ unwords [channelNm, refClkNm])
+    , property       "RX_REFCLK_SOURCE"                      (BraceTcl @Text $ fromString $ unwords [channelNm, refClkNm])
 
     , property @Text "RX_DATA_DECODING"                      "8B10B"
     , property @Text "RX_INT_DATA_WIDTH"                     "40"
@@ -198,7 +198,7 @@ gthCoreTclBBTF bbCtx
     , property @Bool "RX_COMMA_SHOW_REALIGN_ENABLE" False
 
     , property @Text "TX_REFCLK_FREQUENCY"                   "200"
-    , property @Text "TX_REFCLK_SOURCE"                      (fromString $ unwords [channelNm, refClkNm]) -- "X0Y9 clk0" -- "X0Y10 clk0"
+    , property       "TX_REFCLK_SOURCE"                      (BraceTcl @Text $ fromString $ unwords [channelNm, refClkNm]) -- "X0Y9 clk0" -- "X0Y10 clk0"
 
     , property @Text "TXPROGDIV_FREQ_VAL"                    "250"
     , property @Text "TX_DATA_ENCODING"                      "8B10B"
@@ -358,7 +358,7 @@ gthCoreNTclBBTF bbCtx
   where
   ipConfig nm chanConfig = (defIpConfig "gtwizard_ultrascale " "1.7" nm){properties = props chanConfig}
   props (e_chansUsed, e_chanNms, e_refClkPaths) =
-    [ property @Text "CHANNEL_ENABLE"                        (fromString $ unwords chanNms) -- "X0Y9" -- "X0Y10"
+    [ property       "CHANNEL_ENABLE"                        (BraceTcl @Text $ fromString $ unwords chanNms) -- "X0Y9" -- "X0Y10"
 
     , property @Text "LOCATE_COMMON"                         "CORE"
     , property @Text "LOCATE_IN_SYSTEM_IBERT_CORE"           "NONE"
@@ -375,7 +375,7 @@ gthCoreNTclBBTF bbCtx
 
     , property @Text "RX_REFCLK_FREQUENCY"                   "200"
     -- .X_REFCLK_SOURCE syntax: X0Yn clk[0,1]([+,-]q
-    , property @Text "RX_REFCLK_SOURCE"                      refClkProp
+    , property       "RX_REFCLK_SOURCE"                      refClkProp
 
     , property @Text "RX_DATA_DECODING"                      "8B10B"
     , property @Text "RX_INT_DATA_WIDTH"                     "40"
@@ -399,7 +399,7 @@ gthCoreNTclBBTF bbCtx
     , property @Bool "RX_COMMA_SHOW_REALIGN_ENABLE" False
 
     , property @Text "TX_REFCLK_FREQUENCY"                   "200"
-    , property @Text "TX_REFCLK_SOURCE"                      refClkProp
+    , property       "TX_REFCLK_SOURCE"                      refClkProp
 
     , property @Text "TXPROGDIV_FREQ_VAL"                    "250"
     , property @Text "TX_DATA_ENCODING"                      "8B10B"
@@ -425,7 +425,7 @@ gthCoreNTclBBTF bbCtx
              | otherwise -> x
       Nothing -> error $ "Can't get string from " <> show e_refClkPaths
 
-    refClkProp = fromString $ unwords $ zipWith (\x y -> x <> " " <> y) chanNms refClkPaths
+    refClkProp = BraceTcl @Text $ fromString $ unwords $ zipWith (\x y -> x <> " " <> y) chanNms refClkPaths
 
 gthCoreNTclBBTF bbCtx = error ("gthCoreNTclBBTF, bad bbCtx: " <> show bbCtx)
 
