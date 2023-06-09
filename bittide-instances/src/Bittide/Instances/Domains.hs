@@ -15,3 +15,8 @@ createDomain vXilinxSystem{vName="Basic200B", vPeriod=hzToPeriod 200e6}
 createDomain vXilinxSystem{vName="Internal", vPeriod=hzToPeriod 200e6}
 createDomain vXilinxSystem{vName="External", vPeriod=hzToPeriod 200e6}
 createDomain vXilinxSystem{vName="Basic300", vPeriod=hzToPeriod 300e6}
+
+createDomain vXilinxSystem{vName="TxS", vPeriod=hzToPeriod 10e9}  -- used for signals sent by the GTH
+createDomain vXilinxSystem{vName="RxS", vPeriod=hzToPeriod 10e9}  -- used for signals received by the GTH
+createDomain vXilinxSystem{vName="TxUser2", vPeriod=hzToPeriod 125e6}
+createDomain vXilinxSystem{vName="RxUser2", vPeriod=hzToPeriod 125e6}
