@@ -185,6 +185,7 @@ targets = map enforceValidTarget
   , defTarget 'ElasticBuffer.elasticBuffer5
   , (defTarget 'MVPs.clockControlDemo0) {targetHasXdc = True}
   , (defTarget 'MVPs.clockControlDemo1) {targetHasXdc = True}
+  , (defTarget 'MVPs.clockControlDemo2) {targetHasXdc = True}
   , defTarget 'ScatterGather.gatherUnit1K
   , defTarget 'ScatterGather.gatherUnit1KReducedPins
   , defTarget 'ScatterGather.scatterUnit1K
