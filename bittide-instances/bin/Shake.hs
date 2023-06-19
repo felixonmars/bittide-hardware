@@ -198,7 +198,7 @@ main = do
         -- Synthesis
         runSynthTclPath %> \path -> do
           need [falsePathXdc]
-          synthesisPart <- getEnvWithDefault "xcku035-ffva1156-2-e" "SYNTHESIS_PART"
+          synthesisPart <- getEnvWithDefault "xcku040-ffva1156-2-e" "SYNTHESIS_PART"
           locatedManifest <- decodeLocatedManifest manifestPath
 
           constraintFileName <- liftIO (getConstraintFileName target)

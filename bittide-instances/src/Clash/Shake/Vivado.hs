@@ -79,12 +79,25 @@ mkBaseTcl outputDir LocatedManifest{lmPath} = do
 
   pure [__i|
     set_msg_config -severity {CRITICAL WARNING} -new_severity ERROR
+
     source -notrace {#{connector}}
     file delete -force {#{outputDir </> "ip"}}
     file mkdir {#{outputDir </> "ip"}}
     clash::readMetadata {#{topEntityDir}}
-    clash::createAndReadIp -dir {#{outputDir </> "ip"}}
+
+    create_project -in_memory
+    set_property board_part xilinx.com:kcu105:part0:1.7 [current_project]
+    set ips [clash::createIp -dir {#{outputDir </> "ip"}}]
+    set ipFiles [get_property IP_FILE [get_ips $ips]]
+    close_project
+
     clash::readHdl
+
+    set_property board_part xilinx.com:kcu105:part0:1.7 [current_project]
+    read_ip $ipFiles
+    set_property GENERATE_SYNTH_CHECKPOINT false [get_files $ipFiles]
+    generate_target {synthesis simulation} [get_ips $ips]
+
     clash::readXdc {early normal late}
     set_property TOP $clash::topEntity [current_fileset]
   |]
