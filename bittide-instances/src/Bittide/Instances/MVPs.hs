@@ -222,7 +222,7 @@ testGth :: forall chansUsed . (chansUsed ~ 7)
   -> "rxp_in" ::: Vec chansUsed (Signal RxS (BitVector 1))
   -> Clock Basic300 -- "sysclk_300_n"
   -> Clock Basic300 -- "sysclk_300_p"
-  -> Reset Basic300 -- "CPU_RESET"
+  -> Reset Basic125 -- "CPU_RESET"
   -> Clock Basic200 -- "sma_mgt_refclk_n"
   -> Clock Basic200 -- "sma_mgt_refclk_p"
   -> Signal Basic125 Bool
@@ -258,7 +258,7 @@ testGth
   sysclk_n
   sysclk_p
 
-  rstbtn
+  rstbtn_in
   -- gtrefclk0_in
   gtrefclk_n
   gtrefclk_p
@@ -278,7 +278,7 @@ testGth
      )
  where
   gtrefclk = ibufds_gte3 gtrefclk_n gtrefclk_p
-  (freeclk,freelocked) = clockWizardDifferential @Basic300 (SSymbol @"clk_wiz_0") sysclk_n sysclk_p rstbtn
+  (freeclk,freelocked) = clockWizardDifferential @Basic300 (SSymbol @"clk_wiz_0") sysclk_n sysclk_p noReset
 
   chanNms, refClks :: Vec chansUsed String
   chanNms = takeI @chansUsed $ "X0Y10" :> "X0Y9" :> "X0Y16" :> "X0Y17" :> "X0Y18" :> "X0Y19" :> "X0Y11" :> Nil
@@ -291,7 +291,9 @@ testGth
 
   rx_data_goods = bundle $ rx_data_good
 
-  freerst = unsafeFromLowPolarity freelocked
+  rstbtn = resetGlitchFilter (SNat @125000) freeclk rstbtn_in
+
+  freerst = unsafeFromLowPolarity (freelocked .&&. unsafeToLowPolarity rstbtn)
 
   -- Spi core, the maximum clock period of 75 Nanoseconds leads to a nice 5 to 1 clock
   -- divider at 125MHz, resulting in a SPI clock frequencu of 12.5MHz. The
