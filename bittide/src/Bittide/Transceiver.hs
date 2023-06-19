@@ -9,7 +9,7 @@
 module Bittide.Transceiver (transceiverPrbs, transceiverPrbsN) where
 
 import Clash.Explicit.Prelude
-
+import Clash.Explicit.Reset.Extra
 import Clash.Cores.Xilinx.GTH
 
 import Data.Proxy
@@ -125,13 +125,8 @@ transceiverPrbs gtrefclk freeclk rst_all_btn rst_txStim rst_prbsChk chan clkPath
       resetSynchronizer tx_clk
     $ orReset txStimRst' (unsafeFromLowPolarity $ fmap bitCoerce tx_active)
 
-orReset :: KnownDomain dom => Reset dom -> Reset dom -> Reset dom
-orReset a b = unsafeFromHighPolarity (unsafeToHighPolarity a .||. unsafeToHighPolarity b)
-
-noReset :: KnownDomain dom => Reset dom
-noReset = unsafeFromHighPolarity (pure False)
-
 data LinkSt = Down | Up deriving (Eq, Show, Generic, NFDataX)
+
 type LinkStCntr = Index 127
 
 linkStateTracker ::
