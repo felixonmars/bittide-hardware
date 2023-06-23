@@ -24,6 +24,7 @@ set_property IOSTANDARD LVCMOS18 [get_ports USER_SMA_GPIO_P]
 set_property PACKAGE_PIN G27 [get_ports USER_SMA_GPIO_N]
 set_property IOSTANDARD LVCMOS18 [get_ports USER_SMA_GPIO_N]
 
+set_property BOARD_PART_PIN GPIO_LED_0_LS [get_ports {blinkTx[0]}]
 
 set_property BOARD_PART_PIN GPIO_LED_1_LS [get_ports rx_data_good[6]]
 set_property BOARD_PART_PIN GPIO_LED_2_LS [get_ports rx_data_good[5]]
