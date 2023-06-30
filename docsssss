@@ -1,0 +1,156 @@
+commit 3bda0b21d22621084f34b48456efc7a600181f40
+Author: Martijn Bastiaan <martijn@qbaylogic.com>
+Date:   Fri Jun 16 17:31:25 2023 +0200
+
+    wip
+
+diff --git a/bittide/src/Bittide/Transceiver.hs b/bittide/src/Bittide/Transceiver.hs
+index 18272d7..bc70cb3 100644
+--- a/bittide/src/Bittide/Transceiver.hs
++++ b/bittide/src/Bittide/Transceiver.hs
+@@ -142,6 +142,11 @@ linkStateTracker' clk rst = mooreB clk rst enableGen update genOutput initSt . (
+   -- genOutput = (== Up) . fst
+   genOutput (st,cntr) = (st == Up, cntr)
+ 
++-- | Component that starts out by sending comma (alignment) symbols for ~10K
++-- cycles, after it will switch to sending pseudo-random generated data generated
++-- using 'prbsConf31w64' (a PRBS31 stream). The 10K is empirically picked.
++--
++-- Note that the
+ prbsStimuliGen :: KnownDomain dom => Clock dom -> Reset dom -> (Signal dom (BitVector 64), Signal dom (BitVector 8))
+ prbsStimuliGen clk rst = (mux sendCommas (pure commas) prbs, mux sendCommas (pure maxBound) (pure 0))
+  where
+@@ -150,59 +155,88 @@ prbsStimuliGen clk rst = (mux sendCommas (pure commas) prbs, mux sendCommas (pur
+    sendCommas = moore clk rst enableGen (\s _ -> satSucc SatBound s) (/= maxBound) (0::Index 10240) (pure ())
+    prbs = C.withClockResetEnable clk rst enableGen prbsGen prbsConf31w64
+ 
++-- | Config for 'prbsGen' and 'prbsChecker'. For sensible config values see:
++-- https://docs.xilinx.com/v/u/en-US/xapp884_PRBS_GeneratorChecker.
+ type PrbsConfig polyLength polyTap nBits = (SNat polyLength, SNat polyTap, SNat nBits, Bool)
+ 
+--- prbsConf7w8 :: PrbsConfig 7 6 8
+--- prbsConf7w8 = (d7,d6,d8,False)
+--- prbsConf7w4 :: PrbsConfig 7 6 4
+--- prbsConf7w4 = (d7,d6,d4,False)
++-- | A 64-bit PRBS31 config, see 'prbsGen'
+ prbsConf31w64 :: PrbsConfig 31 28 64
+-prbsConf31w64 = (d31,d28,d64,True)
+-
+-prbsGen
+-  :: forall dom polyLength polyTap nBits _n0 _n1 _n2 _n3.
+-    (C.HiddenClockResetEnable dom, (_n0 + 1) ~ nBits, (polyTap + _n1) ~ polyLength, polyTap ~ (_n2 + 1), _n1 ~ (_n3 + 1))
+-  => PrbsConfig polyLength polyTap nBits
+-  -> Signal dom (BitVector nBits)
+-
++prbsConf31w64 = (d31, d28, d64, True)
++
++-- | Generates a pseudo-random bitstream, according to the config given as a
++-- 'PrbsConfig'.
++prbsGen ::
++  forall dom polyLength polyTap nBits _n0 _n1 _n2 _n3.
++  ( C.HiddenClockResetEnable dom
++  , (_n0 + 1) ~ nBits
++  , (polyTap + _n1) ~ polyLength
++  , polyTap ~ (_n2 + 1), _n1 ~ (_n3 + 1) ) =>
++  PrbsConfig polyLength polyTap nBits ->
++  Signal dom (BitVector nBits)
+ prbsGen (pLen@SNat, tap'@SNat, SNat, inv) = C.mealy go (maxBound,maxBound) (pure ())
+  where
+-   go :: (BitVector polyLength, BitVector nBits) -> () -> ((BitVector polyLength, BitVector nBits), BitVector nBits)
+-   go (prbs_reg,prbs_out_prev) _ = ((last prbs, (if inv then complement else id) $ pack (reverse $ map msb prbs)), prbs_out_prev)
+-    where
+-      prbs :: Vec nBits (BitVector polyLength)
+-      prbs = unfoldrI goPrbs prbs_reg
+-      goPrbs :: BitVector polyLength -> (BitVector polyLength, BitVector polyLength)
+-      goPrbs bv = (o,o)
+-       where
+-        o = nb +>>. bv
+-        tap = subSNat pLen tap'
+-        nb = xor (lsb bv) (unpack $ slice tap tap bv)
+-
+-
+-prbsChecker
+-  :: forall dom polyLength polyTap nBits _n0 _n1 _n2 .
+-    (C.HiddenClockResetEnable dom, (_n0 + 1) ~ nBits, (polyTap + _n1) ~ polyLength, polyTap ~ (_n2 + 1))
+-  => PrbsConfig polyLength polyTap nBits
+-  -> Signal dom (BitVector nBits)
+-  -> Signal dom (BitVector nBits)
+-prbsChecker (pLen@SNat, tap'@SNat, SNat, inv) sigPrbsIn = C.mealy go (maxBound,maxBound) (fmap (if inv then complement else id)  sigPrbsIn)
++  go ::
++    (BitVector polyLength, BitVector nBits) ->
++    () ->
++    ( (BitVector polyLength, BitVector nBits)
++    , BitVector nBits )
++  go (prbs_reg,prbs_out_prev) _ =
++    ( (last prbs, (if inv then complement else id) $ pack (reverse $ map msb prbs))
++    , prbs_out_prev )
++   where
++    prbs :: Vec nBits (BitVector polyLength)
++    prbs = unfoldrI goPrbs prbs_reg
++
++    goPrbs :: BitVector polyLength -> (BitVector polyLength, BitVector polyLength)
++    goPrbs bv = (o,o)
++     where
++      o = nb +>>. bv
++      tap = subSNat pLen tap'
++      nb = xor (lsb bv) (unpack $ slice tap tap bv)
++
++-- | Checks incoming data stream for soundness against a pseudo-generated bitstream
++-- (also see 'prbsGen' and 'PrbsConfig'). Note that the output is expected to
++prbsChecker ::
++  forall dom polyLength polyTap nBits _n0 _n1 _n2 .
++  ( C.HiddenClockResetEnable dom, (_n0 + 1) ~ nBits
++  , (polyTap + _n1) ~ polyLength
++  , polyTap ~ (_n2 + 1)
++  ) =>
++  PrbsConfig polyLength polyTap nBits ->
++  Signal dom (BitVector nBits) ->
++  Signal dom (BitVector nBits)
++prbsChecker (pLen@SNat, tap'@SNat, SNat, inv) sigPrbsIn =
++  C.mealy go (maxBound, maxBound) (fmap (if inv then complement else id) sigPrbsIn)
+  where
+-   go :: (BitVector polyLength, BitVector nBits) -> BitVector nBits -> ((BitVector polyLength,BitVector nBits), BitVector nBits)
+-   go (prbs_reg,prbs_out_prev) prbsIn = ((prbs_state,pack $ reverse prbs_out), prbs_out_prev)
+-    where
+-      prbs_out :: Vec nBits Bit
+-      prbs_state :: BitVector polyLength
+-      (prbs_state,prbs_out) = mapAccumL goPrbs prbs_reg (reverse $ unpack prbsIn)
+-      goPrbs :: BitVector polyLength -> Bit -> (BitVector polyLength, Bit)
+-      goPrbs bv inp = (o,bitErr)
+-       where
+-        o = inp +>>. bv
+-        tap = subSNat pLen tap'
+-        bitErr = xor inp (xor (lsb bv) (unpack $ slice tap tap bv))
++  go ::
++    (BitVector polyLength, BitVector nBits) ->
++    BitVector nBits ->
++    ( (BitVector polyLength, BitVector nBits)
++    , BitVector nBits )
++  go (prbs_reg,prbs_out_prev) prbsIn =
++    ( (prbs_state, pack $ reverse prbs_out)
++    , prbs_out_prev )
++   where
++    prbs_out :: Vec nBits Bit
++    prbs_state :: BitVector polyLength
++    (prbs_state, prbs_out) =
++      mapAccumL goPrbs prbs_reg (reverse $ unpack prbsIn)
++
++    goPrbs :: BitVector polyLength -> Bit -> (BitVector polyLength, Bit)
++    goPrbs bv inp = (o, bitErr)
++     where
++      o = inp +>>. bv
++      tap = subSNat pLen tap'
++      bitErr = xor inp (xor (lsb bv) (unpack $ slice tap tap bv))
+ 
+ type Counter = Unsigned 25
+-data GthLinkRstSt = Start Bool | TxWait Counter | RxWait Counter | Monitor deriving (Generic,NFDataX)
++
++data GthLinkRstSt
++  = Start Bool
++  | TxWait Counter
++  | RxWait Counter
++  | Monitor
++  deriving (Generic,NFDataX)
+ 
+ gthResetManager
+   :: forall freerun rxUser2

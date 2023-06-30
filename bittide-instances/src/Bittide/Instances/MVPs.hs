@@ -16,12 +16,12 @@ import Clash.Annotations.TH (makeTopEntity)
 import Clash.Xilinx.ClockGen
 import Clash.Cores.Xilinx.Extra (ibufds)
 
-import Clash.Signal.Internal
-import Bittide.Arithmetic.Time
+-- import Clash.Signal.Internal
+-- import Bittide.Arithmetic.Time
 import Bittide.ClockControl
 import Bittide.ClockControl.Callisto
-import Bittide.ClockControl.Si5395J
-import Bittide.ClockControl.Si539xSpi
+-- import Bittide.ClockControl.Si5395J
+-- import Bittide.ClockControl.Si539xSpi
 import Bittide.ClockControl.StabilityChecker (stabilityChecker, settled)
 import Bittide.Counter
 import Bittide.ElasticBuffer
@@ -32,17 +32,20 @@ import Clash.Cores.Xilinx.GTH
 import Clash.Explicit.Reset.Extra
 import Clash.Cores.Xilinx.VIO
 
+import Clash.Cores.Xilinx.Xpm.Cdc.Single
+
 import qualified Clash.Explicit.Prelude as E
 
 type FINC = Bool
 type FDEC = Bool
 
-deriving instance
-  ( KnownDomain dom
-  , KnownNat entries
-  , 1 <= entries
-  , KnownNat (Clash.Signal.Internal.DomainConfigurationPeriod (KnownConf dom))
-  ) => BitPack (ConfigState dom entries)
+-- deriving instance
+--   ( KnownDomain dom
+--   , KnownNat entries
+--   , 1 <= entries
+--   , KnownNat (Clash.Signal.Internal.DomainConfigurationPeriod (KnownConf dom))
+--   ) => BitPack (ConfigState dom entries)
+
 clockControlDemo2 ::
   "SMA_MGT_REFCLK_C_P" ::: Clock Basic200 ->
   "SMA_MGT_REFCLK_C_N" ::: Clock Basic200 ->
@@ -53,25 +56,18 @@ clockControlDemo2 ::
   "RST_GTH" ::: Signal Basic125 Bool ->
   "GTH_RX_NS" ::: Vec 7 (Signal GthRx (BitVector 1)) ->
   "GTH_RX_PS" ::: Vec 7 (Signal GthRx (BitVector 1)) ->
-  "MISO" ::: Signal Basic125 Bit ->
   ( "GTH_TX_NS" ::: Vec 7 (Signal GthTx (BitVector 1))
   , "GTH_TX_PS" ::: Vec 7 (Signal GthTx (BitVector 1))
   , "" ::: Signal GthTx ("FINC" ::: FINC, "FDEC" ::: FDEC)
   , "Linkstatusses" ::: Vec 7 (Signal GthRx Bool)
-  , "spiDone" ::: Signal Basic125 Bool
-  , "" :::
-      ( "SCLK"      ::: Signal Basic125 Bool
-      , "MOSI"      ::: Signal Basic125 Bit
-      , "CSB"       ::: Signal Basic125 Bool
-      )
   )
 clockControlDemo2
   refClkP refClkN
   sysClkP sysClkN
   asyncRstGlobal (fmap not -> asyncRstLocal) (fmap not -> asyncRstGth)
   rxns rxps
-  miso = hwSeqX (probeSys, probegthTx)
-    (txns, txps, frequencyAdjusters, linkUpsRx, spiDone, spiOut)
+  = hwSeqX probegthTx
+    (txns, txps, frequencyAdjusters, linkUpsRx)
  where
   availableLinkMask = pure $ complement 0 -- all links available
 
@@ -79,33 +75,38 @@ clockControlDemo2
 
   -- Clock wizardry
   refClk = ibufds_gte3 refClkN refClkP :: Clock Basic200
-  sysClk :: Clock Basic125
-  clk300 = ibufds sysClkP sysClkN
 
-  (sysClk, sysLock) = --clockWizard (SSymbol @"SysClk") clk300 noReset
+  -- clk300 :: Clock Basic300
+  -- clk300 = ibufds sysClkP sysClkN
+
+  sysClk :: Clock Basic125
+  (sysClk, sysLock0) = --clockWizard (SSymbol @"SysClk") clk300 noReset
     clockWizardDifferential (SSymbol @"SysClk") sysClkN sysClkP noReset
+
+  sysLock1 = xpmCdcSingle sysClk sysClk sysLock0
 
   sysRst = E.holdReset sysClk enableGen d5
     $ orReset rstLocal
-    (unsafeFromLowPolarity $ (sysLock .&&. fmap not spiErr))
+    (unsafeFromLowPolarity $ (sysLock1 .&&. fmap not spiErr))
 
   withTxDom = withClockResetEnable txClock clockControlReset enableGen
 
   clockControlReset = orReset rstGlobal (unsafeFromLowPolarity $ fold (.&&.) linkUpsTx)
 
-  gthAllReset = E.holdReset sysClk enableGen d1024 $ orReset (unsafeFromLowPolarity $ safeDffSynchronizer sysClk sysClk False spiDone) gthReset
+  gthAllReset = E.holdReset sysClk enableGen d1024 $ orReset
+    (unsafeFromLowPolarity $ safeDffSynchronizer sysClk sysClk False spiDone) gthReset
   gthChanReset = E.holdReset sysClk enableGen d1024 gthAllReset
   gthStimReset = E.holdReset sysClk enableGen d1024 gthChanReset
 
   -- Clock programming
-  spiDone = E.dflipflop sysClk $ (==Finished) <$> spiState
-  spiErr = E.dflipflop sysClk $ isErr <$> spiState
+  spiDone = E.dflipflop sysClk $ unsafeToLowPolarity sysRst
+  spiErr = E.dflipflop sysClk $ pure False
 
-  isErr (Error _) = True
-  isErr _         = False
+  -- isErr (Error _) = True
+  -- isErr _         = False
 
-  (_, _, spiState, spiOut) = withClockResetEnable sysClk sysRst enableGen $
-    si539xSpi testConfig6_200_on_0a (SNat @(Microseconds 10)) (pure Nothing) miso
+  -- (_, _, spiState, spiOut) = withClockResetEnable sysClk sysRst enableGen $
+  --   si539xSpi testConfig6_200_on_0a (SNat @(Microseconds 10)) (pure Nothing) miso
 
   -- Reset filtering and synchronization
   rstLocal, gthReset :: Reset Basic125
@@ -123,22 +124,19 @@ clockControlDemo2
   clkPaths ="clk0" :> "clk0":> "clk0-2":> "clk0-2":> "clk0-2":> "clk0-2":> "clk0"  :> Nil
 
   (head -> txClock, rxClocks, txns, txps, linkUpsRx) = unzip5
-    $ transceiverPrbsN refClk sysClk (unsafeToHighPolarity gthAllReset)
-      (unsafeToHighPolarity gthStimReset) (unsafeToHighPolarity gthChanReset)
+    $ transceiverPrbsN refClk sysClk gthAllReset gthStimReset gthChanReset
       chanNms clkPaths rxns rxps
 
   -- Synchronize all link status signals to the tx domain and AND them to obtain linkUpsTx
   syncLinkStatus rxClock linkStatus = safeDffSynchronizer rxClock txClock False linkStatus
   linkUpsTx = syncLinkStatus <$> rxClocks <*> linkUpsRx
 
-  (speedChange, stabilities, allStable, allCentered) = unbundle $
+  (speedChange0, stabilities, allStable0, allCentered0) = unbundle $
     fmap (\CallistoResult{..} -> (speedChange, stability, allStable, allSettled))
     $ callistoClockControl @7 @25 @GthTx txClock clockControlReset enableGen
       clockConfig availableLinkMask $ fmap (fmap resize) domainDiffs
 
-  frequencyAdjusters = withTxDom $ stickyBits @GthTx d20 (speedChangeToPins <$> speedChange)
-  probeSys :: Signal Basic125 ()
-  probeSys = vioProbe ("spiState" :> Nil) Nil () sysClk (E.dflipflop sysClk $ pack <$> spiState)
+  frequencyAdjusters = withTxDom $ stickyBits @GthTx d20 (speedChangeToPins <$> speedChange0)
   probegthTx :: Signal GthTx ()
   probegthTx =
     vioProbe
@@ -147,7 +145,15 @@ clockControlDemo2
     :> "stabilities"
     :> "allStable"
     :> "allCentered"
-    :> Nil) Nil () txClock (E.dflipflop txClock $ pack <$> bundle domainActives) (E.dflipflop txClock $ pack <$> bundle domainDiffs) (E.dflipflop txClock $ pack <$> stabilities) (E.dflipflop txClock $ pack <$> allStable) (E.dflipflop txClock $ pack <$> allCentered)
+    :> Nil)
+    Nil
+    ()
+    txClock
+    (E.dflipflop txClock $ pack <$> bundle domainActives)
+    (E.dflipflop txClock $ pack <$> bundle domainDiffs)
+    (E.dflipflop txClock $ pack <$> stabilities)
+    (E.dflipflop txClock $ pack <$> allStable0)
+    (E.dflipflop txClock $ pack <$> allCentered0)
 
   (domainDiffs, domainActives) = unzip $ fmap unbundle $ rxDiffCounter <$> rxClocks <*> linkUpsRx
   rxDiffCounter rxClk linkUp =

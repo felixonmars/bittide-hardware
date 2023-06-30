@@ -313,6 +313,24 @@ main = do
                   defaultClashCmd clashBuildDir targetName
               command_ [] buildTool buildToolArgs
 
+              -- Workaround https://github.com/clash-lang/clash-compiler/issues/2518
+              command_
+                []
+                "sed"
+                [ "-i"
+                , "/create_clock -name {SMA_MGT_REFCLK_C_N}/d"
+                , "_build/clash/" <> show targetName </> nameBase targetName <> ".sdc"
+                ]
+
+              command_
+                []
+                "sed"
+                [ "-i"
+                , "/create_clock -name {SYSCLK_300_N}/d"
+                , "_build/clash/" <> show targetName </> nameBase targetName <> ".sdc"
+                ]
+
+
               -- Clash messes up ANSI escape codes, leaving the rest of the terminal
               -- printed in bold text. Reset manually:
               liftIO (setSGR [])
