@@ -108,6 +108,7 @@ library
     Bittide.ClockControl
     Bittide.ClockControl.Callisto
     Bittide.ClockControl.Callisto.Util
+    Bittide.ClockControl.Registers
     Bittide.ClockControl.Si5391A
     Bittide.ClockControl.Si5395J
     Bittide.ClockControl.Si539xSpi
