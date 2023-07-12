@@ -307,7 +307,7 @@ mkBoardProgramTcl outputDir hwTargets url hasProbesFile = do
       | otherwise = "set probes_file {}"
 
   pure [__i|
-    source {#{hardwareTestTclPath}}
+    source -notrace {#{hardwareTestTclPath}}
     global fpga_ids
 
     set_msg_config -severity {CRITICAL WARNING} -new_severity ERROR
@@ -342,7 +342,7 @@ mkHardwareTestTcl ::
 mkHardwareTestTcl outputDir hwTargets url = do
   hardwareTestTclPath <- getDataFileName ("data" </> "tcl" </> "HardwareTest.tcl")
   pure [__i|
-    source {#{hardwareTestTclPath}}
+    source -notrace {#{hardwareTestTclPath}}
     set_msg_config -severity {CRITICAL WARNING} -new_severity ERROR
 
     set fpga_nrs #{toTclTarget hwTargets}
