@@ -358,3 +358,27 @@ axiStreamPacketFifo fifoDepth = Circuit goCircuit
       if packetComplete
       then isJust fifoOutGo
       else fifoReadyGo && maybe False _tlast axiM2SGo
+
+axiExposePacketSize ::
+  forall dom conf userType maxPacketSize .
+  ( HiddenClockResetEnable dom
+  , KnownAxi4StreamConfig conf
+  , KnownNat maxPacketSize
+  , 1 <= DataWidth conf) =>
+  Circuit
+    (Axi4Stream dom conf userType)
+    (Axi4Stream dom conf userType, CSignal dom (Maybe (Index (maxPacketSize + 1))))
+axiExposePacketSize = Circuit circuitGo
+ where
+  circuitGo (axiM2S, (axiS2M, _)) =
+    ( axiS2M
+    , (axiM2S, CSignal (mealyB mealyGo 0 (axiM2S, axiS2M))))
+  mealyGo cnt (Just Axi4StreamM2S{..}, _tready -> True)
+    | _tlast    = (0, Just cntNext)
+    | otherwise = (cntNext, Nothing)
+   where
+    cntNext :: Index (maxPacketSize + 1)
+    cntNext = satAdd SatError cnt keepCount
+    keepCount = leToPlus @1 @(DataWidth conf) resize $
+      (popCountBV $ pack _tkeep :: Index ((DataWidth conf - 1) + 2))
+  mealyGo cnt _ = (cnt, Nothing)
