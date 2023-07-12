@@ -3,58 +3,76 @@
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fconstraint-solver-iterations=6 #-}
+
 
 module Bittide.ClockControl.Registers where
 
 import Clash.Prelude
+
 import Protocols
-import Protocols.Internal (CSignal)
+import Protocols.Internal
 import Protocols.Wishbone
 
+import Bittide.ClockControl
+import Bittide.ClockControl.StabilityChecker
+import Bittide.Wishbone
+import Clash.Functor.Extra
 
 type StableBool = Bool
 type SettledBool = Bool
 
-
--- |
-mm ::
+-- | A wishbone accessible clock control interface.
+-- This interface receives the link mask and 'DataCount's from all links.
+-- Furthermore it produces FINC/FDEC pulses for the clock control boards.
+--
+-- The word-aligned address layout of the Wishbone interface is as follows:
+--
+-- - Address 0: Number of links
+-- - Address 1: Link mask
+-- - Address 2: FINC/FDEC
+-- - Address 3: Link stables
+-- - Address 4: Link settles
+-- - Addresses 5 to (5 + nLinks): Data counts
+clockControlWb ::
+  forall dom addrW nLinks m margin framesize .
   ( HiddenClockResetEnable dom
-  , KnownNat regs
   , KnownNat addrW
   , 2 <= addrW
+  , 1 <= framesize
+  , KnownNat nLinks
+  , KnownNat m
+  , m <= 32
+  , nLinks <= 32
   ) =>
+  -- | Maximum number of elements the incoming buffer occupancy is
+  -- allowed to deviate from the current @target@ for it to be
+  -- considered "stable".
+  SNat margin ->
+  -- | Minimum number of clock cycles the incoming buffer occupancy
+  -- must remain within the @margin@ for it to be considered "stable".
+  SNat framesize ->
+  -- | Link mask
+  Signal dom (BitVector nLinks) ->
   -- | Counters
-  Signal dom (Vec n Int) ->
-  -- | All stable
-  Signal dom StableBool ->
-  -- | All stable and centered
-  Signal dom SettledBool ->
-  -- | Reset speedchange register (value has been read)
-  Signal dom (SpeedChangeAck) ->
+  Vec nLinks (Signal dom (DataCount m)) ->
+  -- | Wishbone accessible clock control circuitry
   Circuit
     (Wishbone dom 'Standard addrW (BitVector 32))
-    (CSignal dom SpeedChange)
-mm counters stable settled speedChangeAck = Circuit go
+    (CSignal dom (Bool, Bool))
+clockControlWb margin framesize linkMask counters = Circuit go
  where
-  go ::
-    (Signal dom (WishboneM2S addrW regs (BitVector 32)), CSignal dom ()) ->
-    (Signal dom (WishboneS2M (BitVector 32)), CSignal dom SpeedChange)
-  go master@(WishBoneM2S{..}) = bundle (wbS2M, speedChangeReg)
+  go (wbM2S, _) = (wbS2M, CSignal fIncDec2)
    where
-    speedChangeReg =
-      withReset (unsafeFromHighPolarity speedChangeAck) $
-      register speedChange
-    wbS2M
-      -- not in cycle
-      | not (busCycle && strobe)
-      = emptyWishboneS2M
-      -- illegal addr
-      | not addrLegal
-      = emptyWishboneS2M @(BitVector 32) {err = True, readData = invalidReq, Ack False, ()}
-      -- read at 0
-      | not writeEnable && internalAddr == 0
-      = emptyWishboneS2M @(BitVector 32) {readData, acknowledge}
-     where
-      (alignedAddr, alignment) = split @_ @(addrW - 2) addr
-      internalAddr = bitCoerce $ resize alignedAddr :: Index regs
-      addrLegal = alignedAddr <= (natToNum @regs) && alignment == 0
+    stabilityIndications = bundle $ stabilityChecker margin framesize <$> counters
+    readVec =
+      pure (natToNum @nLinks)
+      :> (zeroExtend @_ @_ @(32 - nLinks) <$> linkMask)
+      :> (resize . pack <$> fIncDec1)
+      :> (resize . pack . fmap stable <$> stabilityIndications)
+      :> (resize . pack . fmap settled <$> stabilityIndications)
+      :> (pack . (extend @_ @_ @(32 - m)) <<$>> counters)
+    fIncDec0 = (\v -> unpack . resize <$> v !! (2 :: Unsigned 2)) <$> writeVec
+    fIncDec1 = regMaybe NoChange fIncDec0
+    fIncDec2 = speedChangeToFincFdec hasClock hasReset fIncDec1
+    (writeVec, wbS2M) = unbundle $ wbToVec <$> bundle readVec <*> wbM2S

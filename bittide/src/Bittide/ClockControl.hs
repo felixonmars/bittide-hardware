@@ -119,7 +119,7 @@ data SpeedChange
   = SpeedUp
   | SlowDown
   | NoChange
-  deriving (Eq, Show, Generic, ShowX, NFDataX)
+  deriving (Eq, Show, Generic, ShowX, NFDataX, BitPack)
 
 data ToFincFdecState dom
   = Wait (Index (PeriodToCycles dom (Microseconds 1)))
