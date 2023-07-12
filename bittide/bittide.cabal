@@ -131,6 +131,7 @@ library
     Clash.Cores.Extra
     Clash.Cores.UART.Extra
     Clash.Cores.Xilinx.Extra
+    Clash.Functor.Extra
     Clash.Sized.Extra
     Data.Constraint.Nat.Extra
     System.IO.Temp.Extra
