@@ -8,6 +8,7 @@ use fdt::Fdt;
 use utils::matches_fdt_name;
 
 pub mod character_device;
+pub mod clock_control;
 pub mod gather_unit;
 pub mod program_stream;
 pub mod scatter_unit;
