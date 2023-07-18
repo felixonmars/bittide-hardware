@@ -18,6 +18,7 @@ import Data.Constraint.Nat.Extra (euclid3, useLowerLimit)
 import Bittide.ClockControl
 import Bittide.ClockControl.Callisto.Util
 import Bittide.ClockControl.StabilityChecker
+import Bittide.Extra.Maybe
 
 import qualified Clash.Cores.Xilinx.Floating as F
 import qualified Clash.Signal.Delayed as D
@@ -25,7 +26,7 @@ import qualified Clash.Signal.Delayed as D
 -- | Result of the clock control algorithm.
 data CallistoResult (n :: Nat) =
   CallistoResult
-    { speedChange :: SpeedChange
+    { maybeSpeedChange :: Maybe SpeedChange
     -- ^ Speed change requested from clock multiplier.
     , stability :: Vec n StabilityIndication
     -- ^ All stability indicators for all of the elastic buffers.
@@ -181,7 +182,7 @@ callisto
   mask allDataCounts =
   -- output signal
   CallistoResult
-    <$> mux shouldUpdate (D.toSignal b_kNext) (pure NoChange)
+    <$> (orNothing <$> shouldUpdate <*> D.toSignal b_kNext)
     <*> scs
     <*> allStable
     <*> allSettled
