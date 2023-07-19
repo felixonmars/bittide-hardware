@@ -1,0 +1,97 @@
+cabal-version:      2.4
+name:               callisto-rust-ffi
+version:            0.1.0
+build-type:         Custom
+extra-source-files: src/lib.rs
+
+custom-setup
+  setup-depends: Cabal, base, directory, process
+
+common common-options
+  default-language: Haskell2010
+  build-depends: base
+  ghc-options: -Wall -Wcompat
+
+library
+  import: common-options
+  exposed-modules: CallistoRustFFI
+  hs-source-dirs: src
+  ghc-shared-options:
+    -optl-Wl,-Bstatic
+    -optl-Wl,-lcallisto_rust_ffi
+    -optl-Wl,-Bdynamic
+  extra-bundled-libraries:
+    callisto_rust_ffi
+
+executable test
+  import: common-options
+  default-extensions:
+    BangPatterns
+    BinaryLiterals
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveAnyClass
+    DeriveDataTypeable
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    NoStarIsType
+    PolyKinds
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TemplateHaskell
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+  ghc-options:
+    -- Without this flag Cabal repl complains about not finding
+    -- callisto-rust-ffi, because it's statically built
+    -Wno-missed-extra-shared-lib
+    -- The default is just not enough
+    -fconstraint-solver-iterations=8
+    -- Plugins to support type-level constraint solving on naturals
+    -fplugin GHC.TypeLits.Extra.Solver
+    -fplugin GHC.TypeLits.Normalise
+    -fplugin GHC.TypeLits.KnownNat.Solver
+
+    -- Clash needs access to the source code in compiled modules
+    -fexpose-all-unfoldings
+
+    -- Worker wrappers introduce unstable names for functions that might have
+    -- blackboxes attached for them. You can disable this, but be sure to add
+    -- a no-specialize pragma to every function with a blackbox.
+    -fno-worker-wrapper
+
+    -- Strict annotations - while sometimes preventing space leaks - trigger
+    -- optimizations Clash can't deal with. See:
+    --
+    --    https://github.com/clash-lang/clash-compiler/issues/2361
+    --
+    -- These flags disables the optimization.
+    -fno-unbox-small-strict-fields
+    -fno-unbox-strict-fields
+  hs-source-dirs:   exe
+  main-is:          Main.hs
+  other-modules:    Sizes
+  build-depends:
+    callisto-rust-ffi,
+    template-haskell,
+    clash-prelude,
+    ghc-typelits-extra >= 0.4.4,
+    ghc-typelits-knownnat >= 0.7.7,
+    ghc-typelits-natnormalise >= 0.7.7,
