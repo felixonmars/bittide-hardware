@@ -23,9 +23,9 @@ import System.Process (readProcess)
 
 import Paths_bittide_shake
 
+import Clash.Shake.Extra
 import Clash.Shake.Flags
 import Clash.Shake.Vivado
-import Clash.Shake.Extra
 
 import qualified Clash.Util.Interpolate as I
 import qualified System.Directory as Directory
@@ -145,6 +145,8 @@ data Target = Target
     -- | Whether target has a VIO probe that can be used to run hardware-in-the-
     -- loop tests. Note that this flag, 'targetHasTest', implies 'targetHasVio'.
   , targetHasTest :: Bool
+    -- | List of rust binaries that the target depends on,
+  , targetRustDependencies :: [String]
   }
 
 defTarget :: TargetName -> Target
@@ -153,6 +155,7 @@ defTarget name = Target
   , targetHasXdc = False
   , targetHasVio = False
   , targetHasTest = False
+  , targetRustDependencies = []
   }
 
 testTarget :: TargetName -> Target
@@ -161,6 +164,7 @@ testTarget name = Target
   , targetHasXdc = True
   , targetHasVio = True
   , targetHasTest = True
+  , targetRustDependencies = []
   }
 
 enforceValidTarget :: Target -> Target
