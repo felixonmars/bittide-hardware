@@ -1,3 +1,7 @@
+-- SPDX-FileCopyrightText: 2022-2023 Google LLC
+--
+-- SPDX-License-Identifier: Apache-2.0
+
 {-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -fplugin=Protocols.Plugin #-}
 module Bittide.Instances.ClockControl.Registers where
@@ -18,10 +22,12 @@ import Bittide.ProcessingElement.Util
 import Clash.Cores.Xilinx.Xpm.Cdc.Single (xpmCdcSingle)
 import Clash.Explicit.Prelude
 import Clash.Prelude (withClockResetEnable)
-import Paths_bittide_instances
 import Protocols.Internal
 import Bittide.SharedTypes
 import qualified Bittide.ClockControl.Si5395J as Si5395J
+
+import System.Directory
+import System.FilePath
 
 
 data TestState = Busy | Fail | Success
@@ -71,12 +77,12 @@ clockControlRegistersEntity clk rst clkControlled miso =
 
   testResult = regEn clk rst enableGen Busy (watchDog .==. pure maxBound) $ mux counterSettled (pure Success) (pure Fail)
   watchDog = register clk rst enableGen (0 :: Index (PeriodToCycles Basic200 (Seconds 1))) $ satSucc SatBound <$> watchDog
-  rstTest = unsafeFromLowPolarity siClkLocked
+  rstTest = unsafeFromActiveLow siClkLocked
 
   rstControlled =
-    unsafeFromLowPolarity $
+    unsafeFromActiveLow $
       xpmCdcSingle clk clkControlled $ -- improvised reset syncer
-        unsafeToLowPolarity rst
+        unsafeToActiveLow rst
 
   (fmap ((0-) . resize) -> counter, counterActive) =
     unbundle $
@@ -93,8 +99,8 @@ clockControlRegistersEntity clk rst clkControlled miso =
   (_, CSignal fIncDec) = toSignals
     ( circuit $ \ unit -> do
       [wbA, wbB] <- (withClockResetEnable clk rstTest enableGen $ processingElement @Basic200A peConfig) -< unit
-      fIncDecCallisto -< wbB
-      withClockResetEnable clk rstTest enableGen $ clockControlWb margin framesize (pure $ complement 0) (counter :> Nil) -< wbA
+      fIncDecCallisto -< wbA
+      withClockResetEnable clk rstTest enableGen $ clockControlWb margin framesize (pure $ complement 0) (counter :> Nil) -< wbB
     ) (() ,CSignal $ pure ())
 
   fIncDecCallisto ::
@@ -120,7 +126,34 @@ clockControlRegistersEntity clk rst clkControlled miso =
   framesize = SNat @1_000_000
   (   (_iStart, _iSize, iMem)
     , (_dStart, _dSize, dMem)) = $(do
-    elfPath <- pure "/home/lucas/bittide-hardware/firmware/examples/target/riscv32imc-unknown-none-elf/release/hello"
+
+    let
+      findProjectRoot :: IO FilePath
+      findProjectRoot = goUp =<< getCurrentDirectory
+        where
+          goUp :: FilePath -> IO FilePath
+          goUp path
+            | isDrive path = error "Could not find 'cabal.project'"
+            | otherwise = do
+                exists <- doesFileExist (path </> projectFilename)
+                if exists then
+                  return path
+                else
+                  goUp (takeDirectory path)
+
+          projectFilename = "cabal.project"
+
+    root <- runIO findProjectRoot
+
+    let elfPath = root </> "firmware/examples/target/riscv32imc-unknown-none-elf/release/clock-control"
+
     memBlobsFromElf BigEndian elfPath Nothing)
 
-  peConfig = PeConfig (0 :> 1 :> 2 :> 3 :> Nil) (Reloadable $ Blob iMem) (Reloadable $ Blob dMem)
+  {-
+    0b001xxxxx_xxxxxxxx 0b0010 0x2x instruction memory
+    0b010xxxxx_xxxxxxxx 0b0100 0x4x data memory
+    0b100xxxxx_xxxxxxxx 0b1000 0x8x callisto register
+    0b101xxxxx_xxxxxxxx 0b1010 0xAx clock control
+
+  -}
+  peConfig = PeConfig (0b001 :> 0b010 :> 0b100 :> 0b101 :> Nil) (Reloadable $ Blob iMem) (Reloadable $ Blob dMem)

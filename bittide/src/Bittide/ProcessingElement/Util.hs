@@ -51,10 +51,10 @@ getBytesMems elfPath maybeDeviceTree = do
   elfBytes <- BS.readFile elfPath
   let (entry, iMem, dMem0) = readElfFromMemory elfBytes
 
-  when (entry /= 0x0000_0000) $ do
+  when (entry /= 0x2000_0000) $ do
     hPutStrLn stderr $
       "Entry point of ELF file at " <> show elfPath <>
-        " must be 0x00000000. Found 0x" <> showHex entry "" <> " instead"
+        " must be 0x20000000. Found 0x" <> showHex entry "" <> " instead"
     exitFailure
 
   -- add device tree as a memory mapped component

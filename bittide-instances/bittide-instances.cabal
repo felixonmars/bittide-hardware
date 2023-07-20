@@ -117,6 +117,8 @@ library
     Paths_bittide_instances
   other-modules:
     Paths_bittide_instances
+  build-depends:
+    directory,
 
 executable get-data-file-name
   import: common-options
