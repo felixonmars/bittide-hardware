@@ -173,8 +173,8 @@ instance
     return $ VecS $ vs
 
   poke p (VecS v) = do
-    let h = sizeOf (undefined :: IntPtr)
-        s = sizeOf (undefined :: a)
+    let h = natToNum @(SizeOf IntPtr)
+        s = natToNum @(SizeOf a)
         d = p `plusPtr` (3 * h)
     pokeByteOff p 0 d
     pokeByteOff p h (natToNum @n :: Int)
@@ -257,7 +257,7 @@ instance
   sizeOf = const $ natToNum @(SizeOf (DataCountS n))
   alignment = const $ natToNum @(Alignment (DataCountS n))
 
-  peek p = DataCountS . V.unpack . V.resize . V.pack
+  peek p = DataCountS . V.resize . V.unpack . V.pack
     <$> (sequence $ V.map (fmap toEnum' . peekByteOff p . (* s) . fromEnum) v)
    where
     s = 8 * natToNum @(SizeOf Int)
@@ -274,9 +274,9 @@ instance
     s = 8 * natToNum @(SizeOf Int)
 
     v :: Vec ((Div n (8 * SizeOf Int)) + RequiresMore (Mod n (8 * SizeOf Int))) Int
-    v = fromEnum <$> unpack (resize $ V.pack c)
+    v = fromEnum <$> unpack (V.pack $ resize c)
 
-    resize :: BitVector n -> BitVector (8 * SizeOf (DataCountS n))
+    resize :: DataCount n -> DataCount (8 * SizeOf (DataCountS n))
     resize = V.resize
 
     unpack ::
@@ -284,6 +284,13 @@ instance
         Vec ((Div n (8 * SizeOf Int)) + RequiresMore (Mod n (8 * SizeOf Int)))
             (BitVector (8 * SizeOf Int))
     unpack = V.unpack
+
+data ControlConfig (m :: Nat) =
+  ControlConfig
+    { reframingEnabled :: Bool
+    , waitTime :: Unsigned 32
+    , targetCount :: DataCount m
+    }
 
 callistoRust ::
   ( KnownNat n
@@ -295,17 +302,16 @@ callistoRust ::
   , 1 <= m
   , 1 <= Div m (8 * SizeOf Int) + RequiresMore (Mod m (8 * SizeOf Int))
   ) =>
-  Bool ->
-  Unsigned 32 ->
-  Vec n (StabilityIndication) ->
+  ControlConfig m ->
   BitVector n ->
+  Vec n (StabilityIndication) ->
   Vec n (DataCount m) ->
   ControlSt ->
   ControlSt
-callistoRust reframingEnabled waitTime stabilityChecks mask dataCounts state =
+callistoRust ControlConfig{..} mask stabilityChecks dataCounts state =
   unsafePerformIO $ do
-    pState <- malloc
-    pVSI <- malloc
+    pState      <- malloc
+    pVSI        <- malloc
     pDataCounts <- malloc
 
     poke pVSI $ VecS stabilityChecks
@@ -315,8 +321,9 @@ callistoRust reframingEnabled waitTime stabilityChecks mask dataCounts state =
     callisto_rust
       (toEnum $ fromEnum reframingEnabled)
       (fromInteger $ toInteger waitTime)
-      (castPtr pVSI)
+      (fromInteger $ toInteger targetCount)
       (fromInteger $ toInteger mask)
+      (castPtr pVSI)
       (castPtr pDataCounts)
       (castPtr pState)
 
@@ -331,15 +338,18 @@ callistoRust reframingEnabled waitTime stabilityChecks mask dataCounts state =
 main :: IO ()
 main =
   print $ callistoRust
-    True
-    439
+    ControlConfig
+      { reframingEnabled = True
+      , waitTime = 439
+      , targetCount = 0
+      }
+    0b110
     (  (StabilityIndication True False)
     :> (StabilityIndication False True)
     :> (StabilityIndication True True)
     :> Nil
     )
-    0b101
-    ((8 :: DataCount 17) :> 4 :> 5 :> Nil)
+    ((8 :: DataCount 17) :> -2 :> 5 :> Nil)
     ControlSt
       { _z_k = 14
       , _b_k = SpeedUp

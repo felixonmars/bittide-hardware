@@ -319,28 +319,94 @@ impl fmt::Display for DataCounts {
     callisto_rust ::
       CUInt  -> // reframing_enabled
       CUInt  -> // wait_time
-      Ptr () -> // stability_checks
+      CInt   -> // wait_time
       CUInt  -> // availability_mask
+      Ptr () -> // stability_checks
       Ptr () -> // data_counts
       Ptr () -> // control_state
       IO ()
-  )
-]
+)]
 fn callisto
   ( reframing_enabled: u32
   , wait_time:         u32
-  , stability_checks:  &VSI
+  , target_count:      i32
   , availability_mask: u32
+  , stability_checks:  &VSI
   , data_counts:       &DataCounts
-  , control_state:     &mut ControlSt
+  , state:             &mut ControlSt
   ) -> () {
+  const K_P: f32 = 2e-4;
+  const FSTEP: f32 = 5e-4;
+
+/*
   print!
-    ( "{}\n{}\n{}\n{:0b}\n{}\n{}"
-    , reframing_enabled
+    ( "{}\n{}\n{}\n{:0b}\n{}\n{}\n{}"
+    , reframing_enabled != 0
     , wait_time
-    , stability_checks
+    , target_count
     , availability_mask
+    , stability_checks
     , data_counts
-    , control_state
+    , state
     );
+*/
+
+  let n_buffers = availability_mask.count_ones();
+  let measured_sum: isize = data_counts.0.iter().sum();
+  let r_k = measured_sum as f32 - (target_count as f32 * n_buffers as f32);
+  let c_des = K_P * r_k + state.steady_state_target;
+
+  state.z_k += state.b_k.sign();
+
+  let c_est = FSTEP * state.z_k as f32;
+
+  state.b_k =
+    if      c_des < c_est { SpeedChange::SlowDown }
+    else if c_des > c_est { SpeedChange::SpeedUp  }
+    else                  { SpeedChange::NoChange };
+
+  state.rf_state_update
+    ( wait_time
+    , reframing_enabled != 0
+    , stability_checks.0.iter().fold(true, |a, x| a & x.stable())
+    , c_des
+    );
+}
+
+impl SpeedChange {
+  fn sign(&self) -> i32 {
+    match &self
+    { SpeedChange::SpeedUp  => 1
+    , SpeedChange::NoChange => 0
+    , SpeedChange::SlowDown => -1
+    }
+  }
+}
+
+impl ControlSt {
+  fn rf_state_update
+    ( &mut self
+    , wait_time: u32
+    , enabled: bool
+    , stable: bool
+    , target: f32
+    ) -> () {
+    if enabled {
+      match self.rf_state
+      { ReframingState::Detect if stable =>
+          self.rf_state = ReframingState::Wait
+            { target_correction: target
+            , cur_wait_time: wait_time
+            }
+      , ReframingState::Wait{ref mut cur_wait_time, ..}
+          if *cur_wait_time > 0 =>
+            *cur_wait_time -= 1
+      , ReframingState::Wait{target_correction, ..} => {
+          self.rf_state = ReframingState::Done;
+          self.steady_state_target = target_correction;
+        }
+      , _ => ()
+      }
+    }
+  }
 }
