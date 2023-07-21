@@ -17,82 +17,16 @@ import Data.Constraint.Nat.Extra (euclid3, useLowerLimit)
 
 import Bittide.ClockControl
 import Bittide.ClockControl.Callisto.Util
+import Bittide.ClockControl.Callisto.Types
+import Bittide.ClockControl.Callisto.Rust
 import Bittide.ClockControl.StabilityChecker
 
 import qualified Clash.Cores.Xilinx.Floating as F
 import qualified Clash.Signal.Delayed as D
 
--- | Result of the clock control algorithm.
-data CallistoResult (n :: Nat) =
-  CallistoResult
-    { speedChange :: SpeedChange
-    -- ^ Speed change requested from clock multiplier.
-    , stability :: Vec n StabilityIndication
-    -- ^ All stability indicators for all of the elastic buffers.
-    , allStable :: Bool
-    -- ^ Joint stability indicator signaling that all elastic buffers
-    -- are stable.
-    , allSettled :: Bool
-    -- ^ Joint "being-settled" indicator signaling that all elastic
-    -- buffers have been settled.
-    , reframingState :: ReframingState
-    -- ^ State of the Reframing detector
-    }
-  deriving (Generic, NFDataX)
-
--- | State of the state machine for realizing the "detect, store, and
--- wait" approach of [arXiv:2303.11467](https://arxiv.org/abs/2303.11467)
-data ReframingState =
-    Detect
-    -- ^ The controller remains in this state until stability has been
-    -- detected.
-  | Wait
-    -- ^ The controller remains in this state for the predefined
-    -- number of cycles with the assumption that the elastic buffers
-    -- of all other nodes are sufficiently stable after that time.
-      { targetCorrection :: !Float
-      -- ^ Stored correction value to be applied at reframing time.
-      , curWaitTime :: !(Unsigned 32)
-      -- ^ Number of cycles to wait until reframing takes place.
-      }
-  | Done
-    -- ^ Reframing has taken place. There is nothing more to do.
-  deriving (Generic, NFDataX)
-
--- | Callisto specific control configuration options.
-data ControlConfig (m :: Nat) =
-  ControlConfig
-    { reframingEnabled :: Bool
-      -- ^ Enable reframing. Reframing allows a system to resettle buffers around
-      -- their midpoints, without dropping any frames. For more information, see
-      -- [arXiv:2303.11467](https://arxiv.org/abs/2303.11467).
-    , waitTime :: Unsigned 32
-      -- ^ Number of cycles to wait until reframing takes place after
-      -- stability has been detected.
-    , targetCount :: DataCount m
-      -- ^ Target data count. See 'targetDataCount'.
-    }
-
--- | Callisto's internal state used in 'callisto'
-data ControlSt =
-  ControlSt
-    { _z_k :: !(Signed 32)
-    -- ^ Accumulated speed change requests, where speedup ~ 1, slowdown ~ -1.
-    , _b_k :: !SpeedChange
-    -- ^ Previously submitted speed change request. Used to determine the estimated
-    -- clock frequency.
-    , _steadyStateTarget :: !Float
-    -- ^ Steady-state value (determined when stability is detected for
-    -- the first time).
-    , rfState :: !ReframingState
-    -- ^ finite state machine for reframing detection
-    }
-  deriving (Generic, NFDataX)
-
 {-# NOINLINE callistoClockControl #-}
 -- | Determines how to influence clock frequency given statistics provided by
 -- all elastic buffers. See 'callisto' for more information.
---
 callistoClockControl ::
   forall n m dom margin framesize.
   ( KnownDomain dom
@@ -125,13 +59,14 @@ callistoClockControl clk rst ena ClockControlConfig{..} mask allDataCounts =
       allStable  = all stable <$> scs
       allSettled = all settled <$> scs
       state = register initState state'
-      state' = callisto
-        ControlConfig
-          { reframingEnabled = cccEnableReframing
-          , waitTime = cccReframingWaitTime
-          , targetCount = targetDataCount
-          }
-        shouldUpdate mask scs dataCounts state
+
+      clockControl =
+        if cccEnableRustySimulation
+        then rustyCallisto
+        else callisto
+
+      state' =
+        clockControl controlConfig shouldUpdate mask scs dataCounts state
 
       stabilityCheck = stabilityChecker
         cccStabilityCheckerMargin
@@ -145,8 +80,12 @@ callistoClockControl clk rst ena ClockControlConfig{..} mask allDataCounts =
         <*> (rfState <$> state')
 
  where
-  filterCounts vMask vCounts = flip map (zip vMask vCounts) $
-    \(isActive, count) -> if isActive == high then count else 0
+  controlConfig =
+    ControlConfig
+      { reframingEnabled = cccEnableReframing
+      , waitTime = cccReframingWaitTime
+      , targetCount = targetDataCount
+      }
 
   initState =
     ControlSt
@@ -155,6 +94,9 @@ callistoClockControl clk rst ena ClockControlConfig{..} mask allDataCounts =
       , _steadyStateTarget = 0.0
       , rfState = Detect
       }
+
+  filterCounts vMask vCounts = flip map (zip vMask vCounts) $
+    \(isActive, count) -> if isActive == high then count else 0
 
 -- | Clock correction strategy based on:
 --
@@ -168,7 +110,6 @@ callistoClockControl clk rst ena ClockControlConfig{..} mask allDataCounts =
 --
 --   * It isn't clear yet whether this will be the final clock control algorithm.
 --   * These algorithms will probably run on a Risc core in the future.
---
 callisto ::
   forall m n dom.
   ( HiddenClockResetEnable dom

@@ -6,8 +6,8 @@ packages:
   bittide/
   bittide-extra/
   bittide-instances/
+  bittide-rust-ffi/
   elastic-buffer-sim/
-  callisto-rust-ffi/
 
   clash-vexriscv/clash-vexriscv/
 

@@ -2,9 +2,9 @@
 module Main where
 
 import Clash.Prelude
-  ( Vec(..), KnownNat, Unsigned, Signed, Generic, NFDataX, Vec, Index, Nat
-  , BitVector, Div, Mod, Bits
-  , type (<=), type (+), type (*)
+  ( HiddenClockResetEnable, KnownNat, Nat, Generic, NFDataX
+  , Signal, Vec(..), Unsigned, Signed, Index, BitVector, Bits
+  , Div, Mod, type (<=), type (+), type (*)
   , natToNum, testBit, setBit, clearBit, zeroBits
   )
 
@@ -20,8 +20,8 @@ import Foreign.Marshal.Alloc
 import GHC.TypeNats (natVal)
 import GHC.TypeLits.KnownNat
 
-import CallistoRustFFI
-import Sizes
+import Bittide.Simulate.RustFFI
+import Bittide.Simulate.RustFFI.Sizes
 
 data SpeedChange
   = SpeedUp
@@ -204,7 +204,7 @@ type instance Alignment (Mask n) = SizeOf Int
 instance
   ( KnownNat n
   , 1 <= n
-    -- TODO: haxiom this out
+  -- TODO: haxiom this out
   , 1 <= Div n (8 * SizeOf Int) + RequiresMore (Mod n (8 * SizeOf Int))
   ) => Storable (Mask n) where
   sizeOf = const $ natToNum @(SizeOf (Mask n))
@@ -251,7 +251,7 @@ type instance Alignment (DataCountS n) = SizeOf Int
 instance
   ( KnownNat n
   , 1 <= n
-    -- TODO: haxiom this out
+  -- TODO: haxiom this out
   , 1 <= Div n (8 * SizeOf Int) + RequiresMore (Mod n (8 * SizeOf Int))
   ) => Storable (DataCountS n) where
   sizeOf = const $ natToNum @(SizeOf (DataCountS n))
@@ -292,6 +292,37 @@ data ControlConfig (m :: Nat) =
     , targetCount :: DataCount m
     }
 
+callisto ::
+  forall m n dom.
+  ( HiddenClockResetEnable dom
+  , KnownNat n
+  , KnownNat m
+  , 1 <= n
+  , 1 <= m
+  , n + m <= 32
+  -- TODO: haxiom this out
+  , 1 <= Div m (8 * SizeOf Int) + RequiresMore (Mod m (8 * SizeOf Int))
+  ) =>
+  -- | Configuration parameters.
+  ControlConfig m ->
+  -- | Update trigger.
+  Signal dom Bool ->
+  -- | Link availability mask.
+  Signal dom (BitVector n) ->
+  -- | Stability indicators for each of the elastic buffers.
+  Signal dom (Vec n StabilityIndication) ->
+  -- | Data counts from elastic buffers.
+  Signal dom (Vec n (DataCount m)) ->
+  -- | Current state.
+  Signal dom ControlSt ->
+  -- | Updated state.
+  Signal dom ControlSt
+callisto cfg shouldUpdate mask scs dataCounts state =
+  upd <$> shouldUpdate <*> state <*> r
+ where
+  r = callistoRust cfg <$> mask <*> scs <*> dataCounts <*> state
+  upd b old new = if b then new else new { _b_k = _b_k old }
+
 callistoRust ::
   ( KnownNat n
   , KnownNat m
@@ -300,6 +331,7 @@ callistoRust ::
   , 1 <= n
   , m <= 8 * SizeOf CUInt
   , 1 <= m
+  -- TODO: haxiom this out
   , 1 <= Div m (8 * SizeOf Int) + RequiresMore (Mod m (8 * SizeOf Int))
   ) =>
   ControlConfig m ->

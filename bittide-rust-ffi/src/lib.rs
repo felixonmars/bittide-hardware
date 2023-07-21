@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Google LLC
+//
+// SPDX-License-Identifier: Apache-2.0
+
 #![feature(slice_ptr_get)]
 use hs_bindgen::{traits::ReprRust, traits::ReprC, *};
 use std::mem;

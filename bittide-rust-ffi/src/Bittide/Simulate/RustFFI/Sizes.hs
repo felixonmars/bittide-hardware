@@ -1,8 +1,8 @@
-{-|
-Copyright:    (C) 2023 Google Inc.
-License:      BSD2 (see the file LICENSE)
-Maintainer:   QBayLogic B.V. <devops@qbaylogic.com>
+-- SPDX-FileCopyrightText: 2023 Google LLC
+--
+-- SPDX-License-Identifier: Apache-2.0
 
+{-|
 'Foreign.Storable.Storable' allows to define the size and alignment of
 raw memory storable types. However, those values currently are defined
 on the term level, although they can be statically determined at
@@ -20,18 +20,19 @@ base types at compile time.
 -- have been simplified on purpose, because that would require some
 -- multi-stage TH compilation, which triggers a bug in cabal, when
 -- statically linking a foreign library.
-module Sizes where
-
-import Clash.Promoted.Nat ()
-import GHC.TypeLits (Nat)
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TemplateHaskell #-}
+module Bittide.Simulate.RustFFI.Sizes where
 
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
+import GHC.TypeLits (Nat)
+import Language.Haskell.TH.Syntax (Type(..), TyLit(..))
+
 import Foreign.C.Types
 import Foreign.Ptr (Ptr, IntPtr, WordPtr)
 import Foreign.Storable (sizeOf, alignment)
-
-import Language.Haskell.TH.Syntax (Type(..), TyLit(..))
 
 -- | Type family for 'Foreign.Storable.Storable.sizeOf'.
 type family SizeOf a :: Nat

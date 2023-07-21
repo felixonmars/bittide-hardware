@@ -28,6 +28,7 @@ haxiomsGroup = testGroup "Haxioms"
   , testPropertyNamed "prop_oneLeCLog2n holds" "prop_oneLeCLog2n" prop_oneLeCLog2n
   , testPropertyNamed "prop_lessThanMax holds" "prop_lessThanMax" prop_lessThanMax
   , testPropertyNamed "prop_useLowerLimit holds" "prop_useLowerLimit" prop_useLowerLimit
+  , testPropertyNamed "prop_oneMore holds" "prop_oneMore" prop_oneMore
   ]
 
 -- | Generate a 'Natural' greater than or equal to /n/. Can generate 'Natural's
@@ -214,3 +215,21 @@ prop_useLowerLimit = property $ do
   n <- forAll (genNatural 0)     -- no constraints
   u <- forAll (genNatural (n+m)) -- n + m <= u
   assert (1 + n <= u)
+
+-- | Test whether the following equation (supplied by 'oneMore') holds:
+--
+--     1 <= Div n m + OneMore(Mod n m)
+--
+-- Given:
+--
+--     1 <= n, 1 <= m
+--
+prop_oneMore :: Property
+prop_oneMore = property $ do
+  n <- forAll (genNatural 1)     -- 1 <= n
+  m <- forAll (genNatural 1)     -- 1 <= m
+  assert (1 <= (n `div` m) + oneMore(n `mod` m))
+ where
+  oneMore = \case
+    0 -> 0
+    _ -> 1

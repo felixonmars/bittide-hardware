@@ -1,7 +1,12 @@
 cabal-version:      2.4
-name:               callisto-rust-ffi
+name:               bittide-rust-ffi
 version:            0.1.0
 build-type:         Custom
+License:            Apache-2.0
+license-file:       LICENSE
+author:             QBayLogic B.V.
+maintainer:         devops@qbaylogic.com
+Copyright:          Copyright © 2022-2023 Google LLC
 extra-source-files: src/lib.rs
 
 custom-setup
@@ -14,14 +19,11 @@ common common-options
 
 library
   import: common-options
-  exposed-modules: CallistoRustFFI
-  hs-source-dirs: src
-  ghc-shared-options:
-    -optl-Wl,-Bstatic
-    -optl-Wl,-lcallisto_rust_ffi
-    -optl-Wl,-Bdynamic
-  extra-bundled-libraries:
-    callisto_rust_ffi
+  exposed-modules: Bittide.Simulate.RustFFI
+                   Bittide.Simulate.RustFFI.Sizes
+  hs-source-dirs:  src
+  build-depends:   template-haskell
+  extra-libraries: bittide_rust_ffi
 
 executable test
   import: common-options
@@ -59,9 +61,6 @@ executable test
     UndecidableInstances
     ViewPatterns
   ghc-options:
-    -- Without this flag Cabal repl complains about not finding
-    -- callisto-rust-ffi, because it's statically built
-    -Wno-missed-extra-shared-lib
     -- The default is just not enough
     -fconstraint-solver-iterations=8
     -- Plugins to support type-level constraint solving on naturals
@@ -87,10 +86,8 @@ executable test
     -fno-unbox-strict-fields
   hs-source-dirs:   exe
   main-is:          Main.hs
-  other-modules:    Sizes
   build-depends:
-    callisto-rust-ffi,
-    template-haskell,
+    bittide-rust-ffi,
     clash-prelude,
     ghc-typelits-extra >= 0.4.4,
     ghc-typelits-knownnat >= 0.7.7,

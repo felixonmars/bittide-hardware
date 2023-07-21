@@ -1,5 +1,9 @@
+# SPDX-FileCopyrightText: 2023 Google LLC
+#
+# SPDX-License-Identifier: Apache-2.0
+
 [package]
-name = "callisto-rust-ffi"
+name = "bittide-rust-ffi"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,6 +13,9 @@ edition = "2021"
 hs-bindgen = { version = "0.8.0", features = ["full"] }
 hs-bindgen-types = { version = "0.8.0" }
 static_assertions = "1.1.0"
+
+[patch.crates-io]
+hs-bindgen-attribute = { git = "https://github.com/kleinreact/hs-bindgen-attribute.git", branch = "v0.8.0-path-fix" }
 
 [lib]
 crate-type = ["staticlib"]
