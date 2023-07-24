@@ -13,7 +13,7 @@ codegen-units = 1
 
 [workspace]
 members = [
-  "fdt-read",
-  "hello",
+  "examples/fdt-read",
+  "examples/hello",
 ]
 resolver = "2"
