@@ -93,6 +93,10 @@ oneLeCLog2n = unsafeCoerce (Dict :: Dict (0 <= 0))
 useLowerLimit :: forall n m u . (1 <= m, n + m <= u) => Dict (1 + n <= u)
 useLowerLimit = unsafeCoerce (Dict :: Dict (0 <= 0))
 
--- | If @1 <= n@ and @1 <= m@, then @1 <= Div n m + OneMore(Mod n m)@
-oneMore :: forall n m . (1 <= n, 1 <= m) => Dict (1 <= Div n m + OneMore(Mod n m))
+-- | If @1 <= n@ and @1 <= m@, then @1 <= Div n m + OneMore (Mod n m)@
+oneMore :: forall n m . (1 <= n, 1 <= m) => Dict (1 <= Div n m + OneMore (Mod n m))
 oneMore = unsafeCoerce (Dict :: Dict (0 <= 0))
+
+-- | If @1 <= n@ and @n <= m@, then @Div n m + OneMore (Mod n m) == 1@
+isOne :: forall n m . (1 <= n, n <= m) => Dict (Div n m + OneMore (Mod n m) ~ 1)
+isOne = unsafeCoerce (Dict :: Dict (0 <= 0))

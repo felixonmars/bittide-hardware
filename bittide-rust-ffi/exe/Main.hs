@@ -292,6 +292,33 @@ data ControlConfig (m :: Nat) =
     , targetCount :: DataCount m
     }
 
+type instance SizeOf (ControlConfig m) =
+  SizeOf Int + SizeOf Int + SizeOf (DataCountS m)
+
+type instance Alignment (ControlConfig m) =
+  Alignment (DataCountS m)
+
+instance
+  ( KnownNat m
+  , SizeOf (ControlConfig m) ~ 3 * SizeOf Int
+  , Alignment (ControlConfig m) ~ Alignment Int
+  )
+  => Storable (ControlConfig m) where
+  sizeOf = const $ natToNum @(SizeOf (ControlConfig m))
+  alignment = const $ natToNum @(Alignment (ControlConfig m))
+
+  peek p = let s = natToNum @(SizeOf Int) in
+    ControlConfig
+      <$> ((/= 0) <$> (peekByteOff p 0 :: IO Int))
+      <*> (fromInteger . toInteger <$> (peekByteOff p s :: IO Int))
+      <*> (fromInteger . toInteger <$> (peekByteOff p (2*s) :: IO Int))
+
+  poke p ControlConfig{..} = do
+    let s = natToNum @(SizeOf Int)
+    pokeByteOff p 0 ((toEnum $ fromEnum reframingEnabled) :: Int)
+    pokeByteOff p s ((fromInteger $ toInteger waitTime) :: Int)
+    pokeByteOff p (2*s) ((fromInteger $ toInteger targetCount) :: Int)
+
 callisto ::
   forall m n dom.
   ( HiddenClockResetEnable dom
@@ -302,6 +329,7 @@ callisto ::
   , n + m <= 32
   -- TODO: haxiom this out
   , 1 <= Div m (8 * SizeOf Int) + RequiresMore (Mod m (8 * SizeOf Int))
+  , Div m 64 + RequiresMore (Mod m 64) ~ 1
   ) =>
   -- | Configuration parameters.
   ControlConfig m ->
@@ -333,6 +361,7 @@ callistoRust ::
   , 1 <= m
   -- TODO: haxiom this out
   , 1 <= Div m (8 * SizeOf Int) + RequiresMore (Mod m (8 * SizeOf Int))
+  , Div m 64 + RequiresMore (Mod m 64) ~ 1
   ) =>
   ControlConfig m ->
   BitVector n ->
@@ -340,20 +369,21 @@ callistoRust ::
   Vec n (DataCount m) ->
   ControlSt ->
   ControlSt
-callistoRust ControlConfig{..} mask stabilityChecks dataCounts state =
+callistoRust config mask stabilityChecks dataCounts state =
   unsafePerformIO $ do
     pState      <- malloc
     pVSI        <- malloc
     pDataCounts <- malloc
+    pConfig     <- malloc
 
     poke pVSI $ VecS stabilityChecks
     poke pState state
     poke pDataCounts $ VecS (DataCountS <$> dataCounts)
+    poke pConfig config
 
     callisto_rust
-      (toEnum $ fromEnum reframingEnabled)
-      (fromInteger $ toInteger waitTime)
-      (fromInteger $ toInteger targetCount)
+      (castPtr pConfig)
+      (toEnum $ fromEnum True)
       (fromInteger $ toInteger mask)
       (castPtr pVSI)
       (castPtr pDataCounts)
@@ -364,6 +394,7 @@ callistoRust ControlConfig{..} mask stabilityChecks dataCounts state =
     free pState
     free pVSI
     free pDataCounts
+    free pConfig
 
     return state'
 

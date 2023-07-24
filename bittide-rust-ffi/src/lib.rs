@@ -319,11 +319,78 @@ impl fmt::Display for DataCounts {
   }
 }
 
+#[repr(C)]
+struct ControlConfig
+  { reframing_enabled: usize
+  , wait_time: usize
+  , target_count: isize
+  }
+
+const_assert!(
+  3 * mem::size_of::<isize>() ==
+    mem::size_of::<ControlConfig>()
+);
+
+const_assert!(
+  mem::align_of::<isize>() ==
+    mem::align_of::<ControlConfig>()
+);
+
+#[allow(dead_code)]
+const SOME_CONTROL_CONFIG: ControlConfig =
+  ControlConfig
+    { reframing_enabled: 1
+    , wait_time: 88
+    , target_count: -23
+    };
+
+#[allow(dead_code)]
+const CASTED_CONTROL_CONFIG: *const (usize, usize, isize) =
+  &SOME_CONTROL_CONFIG as *const _ as *const (usize, usize, isize);
+
+const_assert!(
+  1usize ==
+    { let (x,_,_) = unsafe {*CASTED_CONTROL_CONFIG}; x }
+);
+
+const_assert!(
+  88usize ==
+    { let (_,x,_) = unsafe {*CASTED_CONTROL_CONFIG}; x }
+);
+
+const_assert!(
+  -23isize ==
+    { let (_,_,x) = unsafe {*CASTED_CONTROL_CONFIG}; x }
+);
+
+// This implementation produces the same output as the corresponding
+// Haskell Show instance.
+impl fmt::Display for ControlConfig {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!
+      ( f
+      , "ControlConfig {{\
+         reframingEnabled = {}, \
+         waitTime = {}, \
+         targetCount = {}\
+         }}"
+      , self.reframing_enabled
+      , self.wait_time
+      , self.target_count
+      )
+  }
+}
+
+impl ReprRust<*const ()> for & ControlConfig {
+  fn from(ptr: *const ()) -> Self {
+    return unsafe { mem::transmute(ptr) };
+  }
+}
+
 #[hs_bindgen(
     callisto_rust ::
-      CUInt  -> // reframing_enabled
-      CUInt  -> // wait_time
-      CInt   -> // wait_time
+      Ptr () -> // config
+      CUInt  -> // should_update
       CUInt  -> // availability_mask
       Ptr () -> // stability_checks
       Ptr () -> // data_counts
@@ -331,9 +398,8 @@ impl fmt::Display for DataCounts {
       IO ()
 )]
 fn callisto
-  ( reframing_enabled: u32
-  , wait_time:         u32
-  , target_count:      i32
+  ( config:            &ControlConfig
+  , should_update:     u32
   , availability_mask: u32
   , stability_checks:  &VSI
   , data_counts:       &DataCounts
@@ -342,37 +408,43 @@ fn callisto
   const K_P: f32 = 2e-4;
   const FSTEP: f32 = 5e-4;
 
-/*
-  print!
-    ( "{}\n{}\n{}\n{:0b}\n{}\n{}\n{}"
-    , reframing_enabled != 0
-    , wait_time
-    , target_count
-    , availability_mask
-    , stability_checks
-    , data_counts
-    , state
-    );
-*/
-
-  let n_buffers = availability_mask.count_ones();
+  let n_buffers: isize = availability_mask.count_ones() as isize;
   let measured_sum: isize = data_counts.0.iter().sum();
-  let r_k = measured_sum as f32 - (target_count as f32 * n_buffers as f32);
-  let c_des = K_P * r_k + state.steady_state_target;
+  let r_k: f32 = (measured_sum - (config.target_count as isize * n_buffers as isize)) as f32;
+  let c_des: f32 = (K_P * r_k) + state.steady_state_target;
 
-  state.z_k += state.b_k.sign();
+  /*
+    print!
+      ( "\n\n---\n{}\n{}\n{}\n{:0b}\n{}\n{}\n{}\n{}\n{}\n{}\n{}"
+      , reframing_enabled != 0
+      , wait_time
+      , target_count
+      , availability_mask
+      , stability_checks
+      , data_counts
+      , state
+      , n_buffers
+      , measured_sum
+      , r_k
+      , c_des
+      );
+   */
 
-  let c_est = FSTEP * state.z_k as f32;
+  if should_update != 0 {
+    state.z_k += state.b_k.sign();
 
-  state.b_k =
-    if      c_des < c_est { SpeedChange::SlowDown }
-    else if c_des > c_est { SpeedChange::SpeedUp  }
-    else                  { SpeedChange::NoChange };
+    let c_est: f32 = FSTEP * (state.z_k as f32);
+
+    state.b_k =
+      if      c_des < c_est { SpeedChange::SlowDown }
+      else if c_des > c_est { SpeedChange::SpeedUp  }
+      else                  { SpeedChange::NoChange };
+  }
 
   state.rf_state_update
-    ( wait_time
-    , reframing_enabled != 0
-    , stability_checks.0.iter().fold(true, |a, x| a & x.stable())
+    ( config.wait_time
+    , config.reframing_enabled != 0
+    , stability_checks.0.iter().all(|x| x.stable())
     , c_des
     );
 }
@@ -390,7 +462,7 @@ impl SpeedChange {
 impl ControlSt {
   fn rf_state_update
     ( &mut self
-    , wait_time: u32
+    , wait_time: usize
     , enabled: bool
     , stable: bool
     , target: f32
@@ -400,7 +472,7 @@ impl ControlSt {
       { ReframingState::Detect if stable =>
           self.rf_state = ReframingState::Wait
             { target_correction: target
-            , cur_wait_time: wait_time
+            , cur_wait_time: wait_time as u32
             }
       , ReframingState::Wait{ref mut cur_wait_time, ..}
           if *cur_wait_time > 0 =>

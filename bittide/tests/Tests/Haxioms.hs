@@ -29,6 +29,7 @@ haxiomsGroup = testGroup "Haxioms"
   , testPropertyNamed "prop_lessThanMax holds" "prop_lessThanMax" prop_lessThanMax
   , testPropertyNamed "prop_useLowerLimit holds" "prop_useLowerLimit" prop_useLowerLimit
   , testPropertyNamed "prop_oneMore holds" "prop_oneMore" prop_oneMore
+  , testPropertyNamed "prop_isOne holds" "prop_isOne" prop_isOne
   ]
 
 -- | Generate a 'Natural' greater than or equal to /n/. Can generate 'Natural's
@@ -229,7 +230,23 @@ prop_oneMore = property $ do
   n <- forAll (genNatural 1)     -- 1 <= n
   m <- forAll (genNatural 1)     -- 1 <= m
   assert (1 <= (n `div` m) + oneMore(n `mod` m))
- where
-  oneMore = \case
-    0 -> 0
-    _ -> 1
+
+-- | Test whether the following equation (supplied by 'isOne') holds:
+--
+--     1 ~ Div n m + OneMore(Mod n m)
+--
+-- Given:
+--
+--     1 <= n, n <= m
+--
+prop_isOne :: Property
+prop_isOne = property $ do
+  n <- forAll (genNatural 1)     -- 1 <= n
+  m <- forAll (genNatural n)     -- n <= m
+  assert (1 == (n `div` m) + oneMore(n `mod` m))
+
+-- | See 'Data.Constraint.Nat.Extra'.
+oneMore :: Natural -> Natural
+oneMore = \case
+  0 -> 0
+  _ -> 1
