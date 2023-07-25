@@ -737,6 +737,12 @@ jobs:
         run: cargo build --release
         working-directory: firmware/examples/
 
+      - name: Show build output
+        run: |
+          pwd
+          ls
+        working-directory: firmware/examples/target/riscv32imc-unknown-none-elf/release
+
       - name: HDL generation and synthesis
         run : |
           target="${{ matrix.target.stage }}"

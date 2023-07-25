@@ -5,25 +5,25 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use ufmt::uwriteln;
-
-use bittide_sys::uart::Uart;
+use bittide_sys::clock_control::{ClockControl, SpeedChange};
 
 #[cfg(not(test))]
 use riscv_rt::entry;
 
 #[cfg_attr(not(test), entry)]
 fn main() -> ! {
-    let mut uart = unsafe { Uart::new(0x8000_0000 as *mut u8) };
+    let mut cc = unsafe { ClockControl::from_base_addr(0xA000_0000 as *const u32).unwrap() };
 
-    let names = ["Rust", "RISC-V", "Haskell"];
-    for name in names {
-        uwriteln!(uart, "Hello from {}!", name).unwrap();
-    }
-    uwriteln!(uart, "This can also do {} {:#x}", "debug prints", 42).unwrap();
-    uwriteln!(uart, "Going in echo mode!").unwrap();
+    let callisto_reg_addr = 0x8000_0000 as *const u32;
+
     loop {
-        let c = uart.receive();
-        uart.send(c);
+        let callisto_val = unsafe { callisto_reg_addr.read_volatile() };
+        let change = match callisto_val {
+            0 => SpeedChange::SpeedUp,
+            1 => SpeedChange::SlowDown,
+            _ => SpeedChange::NoChange,
+        };
+
+        cc.change_speed(change);
     }
 }
