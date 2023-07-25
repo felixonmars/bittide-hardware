@@ -10,6 +10,7 @@ import Clash.Explicit.Prelude
 import Clash.Annotations.TH (makeTopEntity)
 import Clash.Cores.Xilinx.VIO
 import Clash.Cores.Xilinx.Extra (ibufds)
+import Clash.Explicit.Signal.Extra (glitchFilter)
 
 import Bittide.Instances.Domains
 
@@ -40,7 +41,7 @@ syncLineTest diffClk sync_in = bundle (testDone, testSuccess, sync_out)
   clk = ibufds diffClk
   rst = unsafeFromActiveLow testStart
 
-  (testState,sync_out) = mealyB clk rst enableGen go Idle sync_in
+  (testState,sync_out) = mealyB clk rst enableGen go Idle $ glitchFilter d5 clk rst False sync_in
   (testDone, testSuccess, counter_out) = unbundle $ toDoneSuccess <$> testState
 
   testStart =
