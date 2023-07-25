@@ -109,6 +109,7 @@ library
     Bittide.Instances.Si539xSpi
     Bittide.Instances.StabilityChecker
     Bittide.Instances.Synchronizer
+    Bittide.Instances.SyncLineTest
 
     -- Hardware-in-the-loop tests
     Bittide.Instances.Tests.FincFdec

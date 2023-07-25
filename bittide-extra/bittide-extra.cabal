@@ -75,6 +75,7 @@ library
   exposed-modules:
     Bittide.Extra.Maybe
     Bittide.Extra.Wishbone
+    Clash.Explicit.Signal.Extra
     Clash.Reset.Extra
     Clash.Sized.Vector.Extra
 
