@@ -182,7 +182,7 @@ proc verify_before_start {start_probe} {
     set_property OUTPUT_VALUE 0 $start_probe
     commit_hw_vio [get_hw_vios hw_vio_1]
     refresh_hw_vio [get_hw_vios hw_vio_1]
-    set done [get_property INPUT_VALUE [get_hw_probes probe_test_done]]
+    set done [get_property INPUT_VALUE [get_hw_probes *probe_test_done]]
     if {$done != 0} {
         puts "\tERROR: test is done before starting the test"
         print_all_vios
@@ -197,8 +197,8 @@ proc wait_test_end {} {
     while 1 {
         # Check test status, break if test is done
         refresh_hw_vio [get_hw_vios hw_vio_1]
-        set done [get_property INPUT_VALUE [get_hw_probes probe_test_done]]
-        set success [get_property INPUT_VALUE [get_hw_probes probe_test_success]]
+        set done [get_property INPUT_VALUE [get_hw_probes *probe_test_done]]
+        set success [get_property INPUT_VALUE [get_hw_probes *probe_test_success]]
         if {$done == 1} {
             break
         }
@@ -243,7 +243,7 @@ proc get_test_names {probes_file target_dict url} {
     set_property PROBES.FILE ${probes_file} $device
     refresh_hw_device $device
 
-    set start_probes [get_hw_probes probe_test_start*]
+    set start_probes [get_hw_probes *probe_test_start*]
     if {[expr [llength start_probes] == 0]} {
         puts "No probes found with name 'probe_test_start*', which are needed to start tests"
         exit 1
