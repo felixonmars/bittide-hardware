@@ -390,7 +390,6 @@ impl ReprRust<*const ()> for & ControlConfig {
 #[hs_bindgen(
     callisto_rust ::
       Ptr () -> // config
-      CUInt  -> // should_update
       CUInt  -> // availability_mask
       Ptr () -> // stability_checks
       Ptr () -> // data_counts
@@ -399,7 +398,6 @@ impl ReprRust<*const ()> for & ControlConfig {
 )]
 fn callisto
   ( config:            &ControlConfig
-  , should_update:     u32
   , availability_mask: u32
   , stability_checks:  &VSI
   , data_counts:       &DataCounts
@@ -408,38 +406,19 @@ fn callisto
   const K_P: f32 = 2e-4;
   const FSTEP: f32 = 5e-4;
 
-  let n_buffers: isize = availability_mask.count_ones() as isize;
-  let measured_sum: isize = data_counts.0.iter().sum();
-  let r_k: f32 = (measured_sum - (config.target_count as isize * n_buffers as isize)) as f32;
-  let c_des: f32 = (K_P * r_k) + state.steady_state_target;
+  let n_buffers = availability_mask.count_ones() as i32;
+  let measured_sum = data_counts.0.iter().sum::<isize>() as i32;
+  let r_k = (measured_sum - n_buffers * config.target_count as i32) as f32;
+  let c_des = K_P * r_k + state.steady_state_target;
 
-  /*
-    print!
-      ( "\n\n---\n{}\n{}\n{}\n{:0b}\n{}\n{}\n{}\n{}\n{}\n{}\n{}"
-      , reframing_enabled != 0
-      , wait_time
-      , target_count
-      , availability_mask
-      , stability_checks
-      , data_counts
-      , state
-      , n_buffers
-      , measured_sum
-      , r_k
-      , c_des
-      );
-   */
+  state.z_k += state.b_k.sign();
 
-  if should_update != 0 {
-    state.z_k += state.b_k.sign();
+  let c_est = FSTEP * state.z_k as f32;
 
-    let c_est: f32 = FSTEP * (state.z_k as f32);
-
-    state.b_k =
-      if      c_des < c_est { SpeedChange::SlowDown }
-      else if c_des > c_est { SpeedChange::SpeedUp  }
-      else                  { SpeedChange::NoChange };
-  }
+  state.b_k =
+    if      c_des < c_est { SpeedChange::SlowDown }
+    else if c_des > c_est { SpeedChange::SpeedUp  }
+    else                  { SpeedChange::NoChange };
 
   state.rf_state_update
     ( config.wait_time

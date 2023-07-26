@@ -65,8 +65,9 @@ callistoClockControl clk rst ena ClockControlConfig{..} mask allDataCounts =
         then rustyCallisto
         else callisto
 
-      state' =
-        clockControl controlConfig shouldUpdate mask scs dataCounts state
+      state' = mux shouldUpdate
+        (clockControl controlConfig mask scs dataCounts state)
+        state
 
       stabilityCheck = stabilityChecker
         cccStabilityCheckerMargin
@@ -124,8 +125,6 @@ callisto ::
   ) =>
   -- | Configuration parameters.
   ControlConfig m ->
-  -- | Update trigger.
-  Signal dom Bool ->
   -- | Link availability mask.
   Signal dom (BitVector n) ->
   -- | Stability indicators for each of the elastic buffers.
@@ -136,11 +135,11 @@ callisto ::
   Signal dom ControlSt ->
   -- | Updated state.
   Signal dom ControlSt
-callisto ControlConfig{..} shouldUpdate mask scs dataCounts state =
+callisto ControlConfig{..} mask scs dataCounts state =
   rfStateUpdate
     <$> (all stable <$> scs)
     <*> D.toSignal c_des
-    <*> mux shouldUpdate updatedState state
+    <*> updatedState
  where
   updatedState = D.toSignal $ ControlSt
     <$> delayIU "[1]" z_kNext

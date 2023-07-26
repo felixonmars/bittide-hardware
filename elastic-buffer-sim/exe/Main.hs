@@ -488,7 +488,7 @@ optionParser =
           (  long "wait-time"
           <> short 'w'
           <> metavar "NUM"
-          <> value 20000000
+          <> value 100000
           <> showDefault
           <> help
                (  "Number of clock cycles to wait until reframing takes place "

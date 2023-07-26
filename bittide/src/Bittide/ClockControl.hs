@@ -96,9 +96,9 @@ data ClockControlConfig dom n m c = ClockControlConfig
     -- [arXiv:2303.11467](https://arxiv.org/abs/2303.11467).
   , cccEnableReframing :: Bool
 
-    -- | Number of cycles to wait until reframing takes place after
-    -- stability has been detected, as it is used by the "detect,
-    -- store, and wait" reframing approach
+    -- | Number of pessimistic settle cycles to wait until reframing
+    -- takes place after stability has been detected, as it is used by
+    -- the "detect, store, and wait" reframing approach
   , cccReframingWaitTime :: Unsigned 32
 
     -- | If set, then the clock control algorithm is simulated via the Rust FFI.
@@ -232,7 +232,7 @@ defClockConfig = ClockControlConfig
   , cccStabilityCheckerMargin    = SNat
   , cccStabilityCheckerFramesize = SNat
   , cccEnableReframing           = True
-  , cccReframingWaitTime         = 20000000
+  , cccReframingWaitTime         = 100000
   , cccEnableRustySimulation     = False
   }
  where

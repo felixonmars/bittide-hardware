@@ -186,7 +186,6 @@ jobs:
         run: |
           cabal run -- elastic-buffer-sim:sim \
             +RTS -M${{ matrix.target.hmem }}M -RTS \
-            --get-rusty \
             --output-mode pdf \
             --steps ${{ matrix.target.steps }} \
             --samples 1000 \

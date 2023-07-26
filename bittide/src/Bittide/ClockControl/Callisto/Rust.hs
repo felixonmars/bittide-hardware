@@ -43,8 +43,6 @@ rustyCallisto ::
   ) =>
   -- | Configuration parameters.
   ControlConfig m ->
-  -- | Update trigger.
-  Signal dom Bool ->
   -- | Link availability mask.
   Signal dom (BitVector n) ->
   -- | Stability indicators for each of the elastic buffers.
@@ -55,10 +53,10 @@ rustyCallisto ::
   Signal dom ControlSt ->
   -- | Updated state.
   Signal dom ControlSt
-rustyCallisto config shouldUpdate m scs counts st =
-  callisto <$> shouldUpdate <*> m <*> scs <*> counts <*> st
+rustyCallisto config m scs counts st =
+  callisto <$> m <*> scs <*> counts <*> st
  where
-  callisto update mask stabilityChecks dataCounts state =
+  callisto mask stabilityChecks dataCounts state =
     case isOne @m @(BitsOf Int) of
       Dict ->  unsafePerformIO $ do
         pState      <- malloc
@@ -73,7 +71,6 @@ rustyCallisto config shouldUpdate m scs counts st =
 
         callisto_rust
           (castPtr pConfig)
-          (toEnum $ fromEnum update)
           (fromInteger $ toInteger mask)
           (castPtr pVSI)
           (castPtr pDataCounts)
