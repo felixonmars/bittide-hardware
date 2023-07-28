@@ -12,7 +12,6 @@ module Bittide.ProcessingElement where
 import Clash.Prelude
 
 import Protocols
-import Protocols.Internal
 import Protocols.Wishbone
 import VexRiscv (Input(..), Output(..), vexRiscv)
 
@@ -35,54 +34,6 @@ data PeConfig nBusses where
     -- | Initial content of the data memory, can be smaller than its total depth.
     InitialContent depthD (Bytes 4) ->
     PeConfig nBusses
-
-processingElementDbg ::
-  forall dom nBusses .
-  ( HiddenClockResetEnable dom
-  , KnownNat nBusses, 2 <= nBusses, CLog 2 nBusses <= 30) =>
-  PeConfig nBusses ->
-  Circuit ()
-    ( Vec (nBusses-2) (Wishbone dom 'Standard (MappedBus 32 nBusses) (Bytes 4))
-    , CSignal dom (WishboneM2S 32 4 (Bytes 4))
-    , CSignal dom (WishboneM2S 32 4 (Bytes 4)))
-processingElementDbg (PeConfig memMapConfig initI initD) = circuit $ do
-  (iBus0, dBus0) <- rvCircuit (pure low) (pure low) (pure low)
-  (dBus1, dBusCopy) <- observeWbMaster -< dBus0
-  ([iMemBus, dMemBus], extBusses) <-
-    (splitAtC d2 <| singleMasterInterconnect memMapConfig) -< dBus1
-  wbStorage initD -< dMemBus
-  (iBus1, iBusCopy) <- observeWbMaster -< iBus0
-  iBus2 <- removeMsb -< iBus1
-  wbStorageDPC initI -< (iBus2, iMemBus)
-  idC -< (extBusses, iBusCopy, dBusCopy)
- where
-  removeMsb ::
-    forall aw a .
-    KnownNat aw =>
-    Circuit (Wishbone dom 'Standard (aw + 1) a) (Wishbone dom 'Standard aw a)
-  removeMsb = wbMap (mapAddr (truncateB  :: BitVector (aw + 1) -> BitVector aw)) id
-
-  wbMap fwd bwd = Circuit $ \(m2s, s2m) -> (fmap bwd s2m, fmap fwd m2s)
-
-observeWbMaster ::
-  forall aw dom.
-  KnownDomain dom =>
-  Circuit
-    (Wishbone dom 'Standard aw (Bytes 4))
-    (Wishbone dom 'Standard aw (Bytes 4), CSignal dom (WishboneM2S aw 4 (Bytes 4)))
-observeWbMaster = Circuit go
- where
-
-  go ::
-    ( Signal dom (WishboneM2S aw 4 (BitVector 32))
-    , ( Signal dom (WishboneS2M (BitVector 32))
-      , CSignal dom ()
-      )) ->
-    ( Signal dom (WishboneS2M (BitVector 32))
-    , ( Signal dom (WishboneM2S aw 4 (BitVector 32))
-      , CSignal dom (WishboneM2S aw 4 (BitVector 32)))
-      )
-  go (m2s, (s2m, _)) = (s2m, (m2s, CSignal m2s))
 
 -- | 'Contranomy' based RV32IMC core together with instruction memory, data memory and
 -- 'singleMasterInterconnect'.

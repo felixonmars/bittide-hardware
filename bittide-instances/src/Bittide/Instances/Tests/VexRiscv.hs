@@ -8,7 +8,6 @@ module Bittide.Instances.Tests.VexRiscv where
 
 import Clash.Annotations.TH (makeTopEntity)
 import Clash.Cores.Xilinx.VIO (vioProbe)
-import Clash.Cores.Xilinx.Ila (ila, ilaConfig)
 
 import Clash.Prelude
 
@@ -34,87 +33,20 @@ data TestStatus = Running | Success | Fail
 vexRiscvInner ::
   forall dom.
   HiddenClockResetEnable dom =>
-  Signal dom ((Bool, Bool), WishboneM2S 32 4 (BitVector 32))
-vexRiscvInner = hwSeqX dbgIla $ bundle (stateToDoneSuccess <$> status, iBus)
+  Signal dom (Bool, Bool)
+vexRiscvInner = stateToDoneSuccess <$> status
   where
-
-    dbgIla :: Signal dom ()
-    dbgIla =
-      ila
-        (ilaConfig $
-             "idbg_ibus_addr"
-          :> "idbg_ibus_writeData"
-          :> "idbg_ibus_busSelect"
-          :> "idbg_ibus_busCycle"
-          :> "idbg_ibus_strobe"
-          :> "idbg_ibus_writeEnable"
-          :> "idbg_ibus_cycleTypeIdentifier"
-          :> "idbg_ibus_burstTypeExtension"
-
-          :> "idbg_dbus_addr"
-          :> "idbg_dbus_writeData"
-          :> "idbg_dbus_busSelect"
-          :> "idbg_dbus_busCycle"
-          :> "idbg_dbus_strobe"
-          :> "idbg_dbus_writeEnable"
-          :> "idbg_dbus_cycleTypeIdentifier"
-          :> "idbg_dbus_burstTypeExtension"
-
-          :> "idbg_dbus_status_addr"
-          :> "idbg_dbus_status_writeData"
-          :> "idbg_dbus_status_busSelect"
-          :> "idbg_dbus_status_busCycle"
-          :> "idbg_dbus_status_strobe"
-          :> "idbg_dbus_status_writeEnable"
-          :> "idbg_dbus_status_cycleTypeIdentifier"
-          :> "idbg_dbus_status_burstTypeExtension"
-
-          :> "idbg_status"
-          :> Nil
-        )
-        hasClock
-        (addr                 <$> iBus)
-        (writeData            <$> iBus)
-        (busSelect            <$> iBus)
-        (busCycle             <$> iBus)
-        (strobe               <$> iBus)
-        (writeEnable          <$> iBus)
-        (cycleTypeIdentifier  <$> iBus)
-        (burstTypeExtension   <$> iBus)
-
-        (addr                 <$> dBus)
-        (writeData            <$> dBus)
-        (busSelect            <$> dBus)
-        (busCycle             <$> dBus)
-        (strobe               <$> dBus)
-        (writeEnable          <$> dBus)
-        (cycleTypeIdentifier  <$> dBus)
-        (burstTypeExtension   <$> dBus)
-
-        (addr                 <$> dBusStatus)
-        (writeData            <$> dBusStatus)
-        (busSelect            <$> dBusStatus)
-        (busCycle             <$> dBusStatus)
-        (strobe               <$> dBusStatus)
-        (writeEnable          <$> dBusStatus)
-        (cycleTypeIdentifier  <$> dBusStatus)
-        (burstTypeExtension   <$> dBusStatus)
-
-        (pack <$> status)
-
 
     stateToDoneSuccess Running = (False, False)
     stateToDoneSuccess Success = (True, True)
     stateToDoneSuccess Fail    = (True, False)
 
     unitC = CSignal (pure ())
-    (_, (CSignal status, CSignal iBus, CSignal dBus, CSignal dBusStatus)) = circuitFn ((), (unitC, unitC, unitC, unitC))
+    (_, CSignal status) = circuitFn ((), unitC)
 
     Circuit circuitFn = circuit $ \unit -> do
-        ([wb], iBusCopy, dBusCopy) <- processingElementDbg peConfig -< unit
-        (wb1, wbCopy) <- observeWbMaster -< wb
-        status <- statusRegister -< wb1
-        idC -< (status, iBusCopy, dBusCopy , wbCopy)
+        [wb] <- processingElement peConfig -< unit
+        statusRegister -< wb
 
     statusRegister :: Circuit (Wishbone dom 'Standard 30 (Bytes 4)) (CSignal dom TestStatus)
     statusRegister = Circuit $ \(fwd, CSignal _) ->
@@ -187,9 +119,8 @@ vexRiscvTest diffClk = (testDone, testSuccess)
 
     clkStableRst = unsafeFromActiveLow clkStable1
 
-    (unbundle -> (unbundle -> (testDone, testSuccess), iBus)) =
+    (unbundle -> (testDone, testSuccess)) =
       hwSeqX probe $
-      hwSeqX dbgProbe $
       withClockResetEnable clk reset enableGen (vexRiscvInner @Basic200)
 
     reset = orReset clkStableRst testReset
@@ -205,25 +136,6 @@ vexRiscvTest diffClk = (testDone, testSuccess)
       clk
       testDone
       testSuccess
-
-    dbgProbe :: Signal Basic200 (Vec 0 Bool)
-    dbgProbe = vioProbe
-      (   "dbg_reset"
-       :> "dbg_clkStableRst"
-       :> "dbg_testReset"
-       :> "dbg_ibus_active"
-       :> "dbg_ibus_addr"
-       :> "dbg_ibus_addr_trunc"
-       :> Nil)
-      Nil
-      Nil
-      clk
-      (unsafeToActiveHigh reset)
-      (unsafeToActiveHigh clkStableRst)
-      (unsafeToActiveHigh testReset)
-      ((busCycle <$> iBus) .&&. (strobe <$> iBus))
-      (addr <$> iBus)
-      ((truncateB  :: BitVector 32 -> BitVector 31) . addr <$> iBus)
 
 {-# NOINLINE vexRiscvTest #-}
 makeTopEntity 'vexRiscvTest

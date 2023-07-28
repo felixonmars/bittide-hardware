@@ -23,9 +23,7 @@ fn write_buf(d: u8) {
 }
 
 fn read_buf() -> u8 {
-    unsafe {
-        (&BUF as *const u8).read_volatile()
-    }
+    unsafe { (&BUF as *const u8).read_volatile() }
 }
 
 fn test_success() {
