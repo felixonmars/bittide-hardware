@@ -14,6 +14,20 @@ use riscv_rt::entry;
 
 const STATUS_REG_ADDR: *mut u32 = 0xC000_0000 as *mut u32;
 
+static mut BUF: u8 = 0;
+
+fn write_buf(d: u8) {
+    unsafe {
+        (&mut BUF as *mut u8).write_volatile(d);
+    }
+}
+
+fn read_buf() -> u8 {
+    unsafe {
+        (&BUF as *const u8).read_volatile()
+    }
+}
+
 fn test_success() {
     unsafe {
         STATUS_REG_ADDR.write_volatile(1);
@@ -28,6 +42,12 @@ fn test_failure() {
 
 #[cfg_attr(not(test), entry)]
 fn main() -> ! {
+    write_buf(1);
+    write_buf(3);
+    write_buf(65);
+
+    write_buf(read_buf() - 3);
+
     test_success();
 
     /*
